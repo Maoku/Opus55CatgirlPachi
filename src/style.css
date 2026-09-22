@@ -468,3 +468,24 @@ input.wide {
 .warnings li.link:hover {
   background: rgba(255, 210, 74, 0.16);
 }
+
+/* ---- ファイル ---- */
+
+.file-message {
+  margin-top: 6px;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.file-message.ok {
+  color: var(--ok);
+}
+
+.file-message.ng {
+  color: var(--danger);
+}
+
+.file-status {
+  margin-top: 4px;
+  font-size: 12px;
+}

@@ -39,7 +39,7 @@ export class GameLoop {
 
   constructor(
     private readonly hooks: LoopHooks,
-    readonly fixedDt: number,
+    public fixedDt: number,
     private readonly clock: () => number = () => performance.now(),
   ) {}
 

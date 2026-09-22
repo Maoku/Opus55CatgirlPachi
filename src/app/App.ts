@@ -1,10 +1,12 @@
 import pachiUrl from '@/assets/pachi.png';
-import { createSampleBoard } from '@/board/sampleBoard';
+import { createDefaultBoard } from '@/board/defaultBoard';
+import { loadBoardLocal, loadJson, saveJson } from '@/board/storage';
 import type { BoardData } from '@/board/types';
 import { randomSeed } from '@/core/SeededRng';
-import { Editor } from '@/editor/Editor';
+import { DEFAULT_EDITOR_SETTINGS, Editor } from '@/editor/Editor';
 import { drawEditorOverlay, OverlayLabels } from '@/editor/EditorOverlay';
 import { EditorPanel } from '@/editor/EditorPanel';
+import { FilePanel } from '@/editor/FilePanel';
 import { objectBounds } from '@/editor/objectOps';
 import { PropertyPanel } from '@/editor/PropertyPanel';
 import { NailLineTool } from '@/editor/tools/NailLineTool';
@@ -35,6 +37,7 @@ const HANDLE = { x: 925, y: 1250, r: 100 };
 const INITIAL_BALLS = 1000;
 /** 編集してから物理ワールドを作り直すまでの待ち時間 (ms) */
 const PHYSICS_REBUILD_DELAY = 150;
+const EDITOR_SETTINGS_KEY = 'pachi.editorSettings';
 
 export type Mode = 'play' | 'edit';
 
@@ -53,6 +56,7 @@ export class App {
   hud!: Hud;
   dial!: HandleDial;
   editorPanel!: EditorPanel;
+  filePanel!: FilePanel;
   playController!: PlayController;
   editController!: EditController;
   mode: Mode = 'play';
@@ -83,7 +87,8 @@ export class App {
     const [rapier, image] = await Promise.all([loadRapier(), loadImage(pachiUrl)]);
     this.rapier = rapier;
     this.renderer.setBoardImage(image);
-    this.board = createSampleBoard();
+    // 前回編集した盤面があればそれを使う
+    this.board = loadBoardLocal() ?? createDefaultBoard();
     this.physics = new PhysicsWorld(rapier, this.board);
     this.game = new Game(this.physics, this.board, {
       seed: randomSeed(),
@@ -108,6 +113,7 @@ export class App {
 
   private setupEditor(): void {
     const editor = new Editor(this.board);
+    editor.settings = loadJson(EDITOR_SETTINGS_KEY, DEFAULT_EDITOR_SETTINGS);
     editor.registerTool(new SelectTool(editor));
     editor.registerTool(new NailTool(editor));
     editor.registerTool(new NailLineTool(editor));
@@ -118,6 +124,7 @@ export class App {
     editor.setTool('select');
     editor.bus.on('change', () => this.onBoardEdited());
     editor.bus.on('settings', () => {
+      saveJson(EDITOR_SETTINGS_KEY, editor.settings);
       this.applyViewSettings();
       this.rebuildStatic();
     });
@@ -211,6 +218,7 @@ export class App {
     const old = this.physics;
     this.physics = new PhysicsWorld(this.rapier, this.board);
     this.game.setBoard(this.physics, this.board);
+    this.loop.fixedDt = this.board.physics.timestep;
     old.dispose();
   }
 
@@ -319,7 +327,11 @@ export class App {
         }),
       ]),
       new WarningsPanel(this.editor, (ids) => this.focusObjects(ids)).el,
+      (this.filePanel = new FilePanel(this.editor)).el,
     );
+    window.addEventListener('beforeunload', () => {
+      if (this.filePanel.pending) this.filePanel.saveNow();
+    });
     this.editPanel.append(this.editorPanel.el);
 
     this.modeButtons.play.addEventListener('click', () => this.setMode('play'));
