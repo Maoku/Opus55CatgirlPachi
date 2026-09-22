@@ -110,3 +110,56 @@ export function circleThrough(
   const y = (a2 * (c.x - b.x) + b2 * (a.x - c.x) + c2 * (b.x - a.x)) / d;
   return { x, y, r: Math.hypot(a.x - x, a.y - y) };
 }
+
+/** Catmull-Rom 曲線で折れ線を滑らかにする (端点は通る) */
+export function smoothPolyline(points: readonly Vec2[], samplesPerSegment: number): Vec2[] {
+  if (points.length < 3) return points.map((p) => ({ ...p }));
+  const out: Vec2[] = [];
+  const n = points.length;
+  for (let i = 0; i < n - 1; i++) {
+    const p0 = points[Math.max(i - 1, 0)]!;
+    const p1 = points[i]!;
+    const p2 = points[i + 1]!;
+    const p3 = points[Math.min(i + 2, n - 1)]!;
+    for (let s = 0; s < samplesPerSegment; s++) {
+      const t = s / samplesPerSegment;
+      const t2 = t * t;
+      const t3 = t2 * t;
+      const f = (a: number, b: number, c: number, d: number) =>
+        0.5 *
+        (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+      out.push({ x: f(p0.x, p1.x, p2.x, p3.x), y: f(p0.y, p1.y, p2.y, p3.y) });
+    }
+  }
+  out.push({ ...points[n - 1]! });
+  return out;
+}
+
+/**
+ * 折れ線を進行方向の右側 (y 下向きの座標系で時計回りに進むときの内側) へ dist だけずらす
+ */
+export function offsetPolyline(points: readonly Vec2[], dist: number): Vec2[] {
+  const n = points.length;
+  return points.map((p, i) => {
+    const a = points[Math.max(i - 1, 0)]!;
+    const b = points[Math.min(i + 1, n - 1)]!;
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    return { x: p.x + (-dy / len) * dist, y: p.y + (dx / len) * dist };
+  });
+}
+
+/** 折れ線の長さ */
+export function polylineLength(points: readonly Vec2[]): number {
+  let len = 0;
+  for (let i = 1; i < points.length; i++) {
+    len += Math.hypot(points[i]!.x - points[i - 1]!.x, points[i]!.y - points[i - 1]!.y);
+  }
+  return len;
+}
+
+export const roundPoint = (p: Vec2, digits = 1): Vec2 => {
+  const k = 10 ** digits;
+  return { x: Math.round(p.x * k) / k, y: Math.round(p.y * k) / k };
+};

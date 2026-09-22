@@ -102,3 +102,210 @@ body {
 .muted {
   color: var(--muted);
 }
+
+/* ---- パネル共通 ---- */
+
+.panel {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.panel h2 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+}
+
+.help {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 0 4px;
+  margin: 0 1px;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--panel-2);
+  font:
+    11px/1.5 ui-monospace,
+    Consolas,
+    monospace;
+  text-align: center;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.field {
+  margin: 8px 0;
+}
+
+.field > label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+label.check {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 4px 0;
+  cursor: pointer;
+}
+
+button {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+button.on,
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #1a0010;
+  font-weight: 600;
+}
+
+input[type='range'] {
+  flex: 1;
+  accent-color: var(--accent);
+}
+
+input[type='number'],
+input[type='text'],
+select {
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: #140a16;
+  color: var(--text);
+  font: inherit;
+}
+
+/* ---- HUD ---- */
+
+.stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 2px 0;
+}
+
+.stat-label {
+  color: var(--muted);
+}
+
+.stat-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.stat.big .stat-value {
+  font-size: 22px;
+  color: var(--accent-2);
+}
+
+.strength-value {
+  width: 3.2em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- 発射ハンドル ---- */
+
+.dial {
+  --fill: 0deg;
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.dial:active {
+  cursor: grabbing;
+}
+
+.dial-track {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from -135deg,
+    rgba(255, 210, 74, 0.85) 0deg,
+    rgba(255, 95, 168, 0.9) var(--fill),
+    rgba(40, 10, 30, 0.55) var(--fill),
+    rgba(40, 10, 30, 0.55) 270deg,
+    transparent 270deg
+  );
+  -webkit-mask: radial-gradient(circle, transparent 58%, #000 60%, #000 70%, transparent 72%);
+  mask: radial-gradient(circle, transparent 58%, #000 60%, #000 70%, transparent 72%);
+}
+
+.dial-knob {
+  position: absolute;
+  inset: 12%;
+  border-radius: 50%;
+}
+
+.dial-knob::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 10%;
+  height: 22%;
+  margin-left: -5%;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 0 8px #ff5fa8;
+}
+
+.dial-label {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 700;
+  text-shadow: 0 1px 3px #000;
+  pointer-events: none;
+}
+
+.dial.firing .dial-track {
+  filter: brightness(1.35) drop-shadow(0 0 6px #ff5fa8);
+}
+
+.dial.locked .dial-label::after {
+  content: ' 固定';
+  font-size: 0.6em;
+}

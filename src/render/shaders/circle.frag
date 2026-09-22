@@ -47,9 +47,14 @@ void main() {
     vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
     float spec = pow(max(dot(n, H), 0.0), 70.0);
     float fres = pow(1.0 - z, 2.0);
-    vec3 base = v_color.rgb * (0.30 + 0.55 * diff);
-    col = base * mix(vec3(1.0), env * 1.5 + 0.15, 0.6) + env * fres * 0.7 + vec3(spec * 1.3);
-    col *= mix(1.0, 0.55, smoothstep(0.8, 1.0, d));
+    // 銀色の地に、周囲の色を控えめに映り込ませる
+    float envLum = dot(env, vec3(0.299, 0.587, 0.114));
+    vec3 tint = mix(vec3(envLum), env, 0.45);
+    vec3 base = v_color.rgb * (0.42 + 0.58 * diff);
+    col = base * mix(vec3(1.0), tint * 1.4 + 0.2, 0.4) + tint * fres * 0.5 + vec3(spec * 1.4);
+    // 下側は暗く (盤面の影)、縁は締める
+    col *= mix(1.0, 0.7, smoothstep(0.0, 1.0, n.y));
+    col *= mix(1.0, 0.35, smoothstep(0.82, 1.0, d));
   } else if (kind == 2) {
     // 釘の頭: 平たい金属の円盤。左上から光が当たる
     vec2 hl = v_local - vec2(-0.35, -0.35);

@@ -250,8 +250,9 @@ export class PhysicsWorld {
         .setCcdEnabled(true)
         .setCanSleep(false),
     );
+    // 慣性モーメントは中実球 (2/5 m r^2) とする
     const desc = R.ColliderDesc.ball(p.ballRadius)
-      .setMass(p.ballMass)
+      .setMassProperties(p.ballMass, { x: 0, y: 0 }, 0.4 * p.ballMass * p.ballRadius ** 2)
       .setCollisionGroups(BALL_GROUPS);
     const collider = this.world.createCollider(this.withMaterial(desc, 'ball'), body);
     const ball: BallState = { id: this.nextBallId++, body, collider, stall: 0 };
