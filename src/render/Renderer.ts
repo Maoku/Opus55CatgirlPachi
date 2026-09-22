@@ -5,6 +5,7 @@ import { createGL } from './gl/context';
 import { ProgramCache } from './gl/Shader';
 import type { FrameContext, Layer } from './Layer';
 import { LineBatch } from './LineBatch';
+import { SpriteLayer } from './SpriteLayer';
 
 const MAX_DPR = 2;
 
@@ -20,9 +21,13 @@ export class Renderer {
   readonly walls = new LineBatch();
   readonly nailShadows = new CircleBatch();
   readonly nails = new CircleBatch();
+  readonly windmills = new CircleBatch();
   readonly ballShadows = new CircleBatch();
   readonly balls = new CircleBatch();
+  /** 入賞のパーティクル・枠ランプなど (加算合成の円) */
   readonly effects = new CircleBatch();
+  /** 大当りのフラッシュなど (盤面全体に重ねるスプライト) */
+  readonly fxSprites = new SpriteLayer();
   readonly overlayLines = new LineBatch();
   readonly overlayCircles = new CircleBatch();
 
@@ -47,8 +52,10 @@ export class Renderer {
       this.nailShadows,
       this.ballShadows,
       this.nails,
+      this.windmills,
       this.balls,
       this.effects,
+      this.fxSprites,
       this.overlayLines,
       this.overlayCircles,
     ];

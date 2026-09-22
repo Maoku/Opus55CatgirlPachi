@@ -79,11 +79,11 @@ export function buildDynamicScene(r: Renderer, physics: PhysicsWorld): void {
     r.ballShadows.push(x + 3, y + 4.5, radius * 1.35, CircleKind.Shadow, [0, 0, 0, 0.45]);
     r.balls.push(x, y, radius, CircleKind.Ball, BALL_COLOR);
   });
-  r.effects.clear();
+  r.windmills.clear();
   physics.forEachWindmill((def, angle) => {
     for (let i = 0; i < def.blades; i++) {
       const a = angle + (i / def.blades) * Math.PI * 2;
-      r.effects.push(
+      r.windmills.push(
         def.x + Math.cos(a) * def.r * 0.55,
         def.y + Math.sin(a) * def.r * 0.55,
         def.r * 0.42,
@@ -91,6 +91,6 @@ export function buildDynamicScene(r: Renderer, physics: PhysicsWorld): void {
         WINDMILL_COLOR,
       );
     }
-    r.effects.push(def.x, def.y, def.r * 0.25, CircleKind.Nail, NAIL_COLOR);
+    r.windmills.push(def.x, def.y, def.r * 0.25, CircleKind.Nail, NAIL_COLOR);
   });
 }

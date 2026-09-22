@@ -31,6 +31,7 @@ import { loadRapier, type Rapier } from '@/physics/rapier';
 import { loadImage } from '@/render/gl/Texture';
 import { CutIn, makeCutInCard } from '@/render/CutIn';
 import { DisplayScreen } from '@/render/DisplayScreen';
+import { BURST_COLORS, Effects } from '@/render/Effects';
 import { Renderer } from '@/render/Renderer';
 import { SpriteLayer, type Sprite } from '@/render/SpriteLayer';
 import { buildDynamicScene, buildStaticScene } from '@/render/SceneBuilder';
@@ -65,6 +66,7 @@ export class App {
   readonly screen = new DisplayScreen();
   private screenSprite!: Sprite;
   private cutIn!: CutIn;
+  effects!: Effects;
   rapier!: Rapier;
   board!: BoardData;
   physics!: PhysicsWorld;
@@ -113,6 +115,12 @@ export class App {
     this.rapier = rapier;
     this.renderer.setBoardImage(image);
     this.setupDisplay(character);
+    this.effects = new Effects(
+      this.renderer.effects,
+      this.renderer.fxSprites,
+      image.width,
+      image.height,
+    );
     // 前回編集した盤面があればそれを使う
     this.board = loadBoardLocal() ?? createDefaultBoard();
     this.physics = new PhysicsWorld(rapier, this.board);
@@ -124,6 +132,7 @@ export class App {
     });
     this.setupEditor();
     this.game.machine.bus.on('jackpotStart', () => this.cutIn.trigger(this.game.time));
+    this.setupEffects();
     this.buildUi();
     this.rebuildStatic();
 
@@ -343,6 +352,33 @@ export class App {
     this.cutIn = new CutIn(chara, dim);
   }
 
+  /** 入賞・大当り・ラウンド開始に合わせてエフェクトを出す */
+  private setupEffects(): void {
+    const fx = this.effects;
+    this.game.bus.on('pocket', (e) => {
+      const color = BURST_COLORS[e.kind];
+      const o = this.board.objects.find((b) => b.id === e.objectId);
+      if (!color || o?.type !== 'pocket') return;
+      fx.burst(o.rect.x, o.rect.y, color, e.kind === 'attacker' ? 8 : 14);
+      fx.pulse(o.id, this.game.time);
+    });
+    const m = this.game.machine;
+    m.bus.on('jackpotStart', () => {
+      fx.flash(this.game.time, 0.7);
+      const d = this.board.objects.find((o) => o.type === 'display');
+      if (!d) return;
+      for (const [dx, dy] of [
+        [-0.4, -0.3],
+        [0.4, -0.3],
+        [-0.4, 0.3],
+        [0.4, 0.3],
+      ] as const) {
+        fx.burst(d.rect.x + d.rect.w * dx, d.rect.y + d.rect.h * dy, BURST_COLORS.start!, 30, 320);
+      }
+    });
+    m.bus.on('roundStart', () => fx.flash(this.game.time, 0.25));
+  }
+
   /** 液晶の図柄とカットインを、盤面の液晶領域に合わせて更新する */
   private updateDisplay(): void {
     const display = this.board.objects.find((o) => o.type === 'display');
@@ -362,6 +398,8 @@ export class App {
   private draw(realDt: number): void {
     buildDynamicScene(this.renderer, this.physics);
     this.updateDisplay();
+    this.effects.enabled = this.mode === 'play';
+    this.effects.update(this.game.time, this.game.machine, this.board);
     if (this.mode === 'edit') {
       this.editor.viewScale = this.renderer.camera.scale;
       drawEditorOverlay(this.editor, this.renderer, this.labels);
