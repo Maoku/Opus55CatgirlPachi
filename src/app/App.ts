@@ -1,16 +1,29 @@
 import pachiUrl from '@/assets/pachi.png';
-import { CircleKind } from '@/render/CircleBatch';
-import { hex } from '@/render/color';
+import { createSampleBoard } from '@/board/sampleBoard';
+import type { BoardData } from '@/board/types';
+import { PhysicsWorld } from '@/physics/PhysicsWorld';
+import { loadRapier, type Rapier } from '@/physics/rapier';
 import { loadImage } from '@/render/gl/Texture';
 import { Renderer } from '@/render/Renderer';
+import { buildDynamicScene, buildStaticScene } from '@/render/SceneBuilder';
+import { h } from '@/ui/dom';
 import { createLayout, type Layout } from '@/ui/layout';
+import { GameLoop } from './GameLoop';
 
-/** アプリ全体。Phase 1 では盤面画像とテスト用の図形を描く */
+/** アプリ全体。盤面・物理・描画・ループをつなぐ */
 export class App {
   readonly layout: Layout;
   readonly renderer: Renderer;
-  private rafId = 0;
+  rapier!: Rapier;
+  board!: BoardData;
+  physics!: PhysicsWorld;
+  loop!: GameLoop;
+  showColliders = true;
+  /** 回収した玉の数 (理由別) */
+  readonly collected = { pocket: 0, outside: 0, stall: 0 };
+
   private readonly startTime = performance.now();
+  private readonly statusEl = h('div', { className: 'status' });
 
   constructor(root: HTMLElement) {
     this.layout = createLayout(root);
@@ -18,41 +31,74 @@ export class App {
   }
 
   async start(): Promise<void> {
-    const image = await loadImage(pachiUrl);
+    const [rapier, image] = await Promise.all([loadRapier(), loadImage(pachiUrl)]);
+    this.rapier = rapier;
     this.renderer.setBoardImage(image);
-    this.drawTestShapes();
-    const frame = (now: number) => {
-      this.renderer.render((now - this.startTime) / 1000);
-      this.rafId = requestAnimationFrame(frame);
-    };
-    this.rafId = requestAnimationFrame(frame);
+    this.setBoard(createSampleBoard());
+    this.buildPanel();
+    this.layout.canvas.addEventListener('pointerdown', (e) => this.onPointerDown(e));
+
+    this.loop = new GameLoop(
+      {
+        step: () => this.step(),
+        render: (info) => {
+          if (info.draw) this.draw();
+        },
+      },
+      this.board.physics.timestep,
+    );
+    this.loop.start();
   }
 
-  stop(): void {
-    cancelAnimationFrame(this.rafId);
+  setBoard(board: BoardData): void {
+    this.physics?.dispose();
+    this.board = board;
+    this.physics = new PhysicsWorld(this.rapier, board);
+    this.rebuildStatic();
   }
 
-  private drawTestShapes(): void {
-    const r = this.renderer;
-    const nail = hex('#d8c9a0');
-    for (let i = 0; i < 12; i++) {
-      const x = 300 + i * 30;
-      r.nailShadows.push(x + 2, 402, 5, CircleKind.Shadow, [0, 0, 0, 0.5]);
-      r.nails.push(x, 400, 3.2, CircleKind.Nail, nail);
+  rebuildStatic(): void {
+    buildStaticScene(this.renderer, this.board, {
+      showColliders: this.showColliders,
+      showNailColliders: this.showColliders,
+    });
+  }
+
+  private step(): void {
+    this.physics.step();
+    for (const e of this.physics.drainEvents()) {
+      if (e.type === 'pocket') this.collected.pocket++;
+      else if (e.type === 'lost') this.collected[e.reason]++;
     }
-    for (let i = 0; i < 5; i++) {
-      r.balls.push(360 + i * 40, 450, 11.9, CircleKind.Ball, hex('#dfe3ea'));
-    }
-    r.walls.polyline(
-      [
-        { x: 120, y: 1100 },
-        { x: 120, y: 500 },
-        { x: 300, y: 260 },
-        { x: 560, y: 235 },
-      ],
-      false,
-      3,
-      hex('#5fe0ff', 0.9),
+  }
+
+  private draw(): void {
+    buildDynamicScene(this.renderer, this.physics);
+    this.renderer.render((performance.now() - this.startTime) / 1000);
+    this.statusEl.textContent =
+      `玉: ${this.physics.ballCount} / 入賞・アウト: ${this.collected.pocket}` +
+      ` / 範囲外: ${this.collected.outside} / 滞留: ${this.collected.stall}`;
+  }
+
+  private onPointerDown(e: PointerEvent): void {
+    const rect = this.layout.canvas.getBoundingClientRect();
+    const p = this.renderer.camera.screenToBoard(e.clientX - rect.left, e.clientY - rect.top);
+    this.physics.spawnBall(p.x, p.y, 0, 0);
+  }
+
+  private buildPanel(): void {
+    const toggle = h('input', { type: 'checkbox', checked: this.showColliders });
+    toggle.addEventListener('change', () => {
+      this.showColliders = toggle.checked;
+      this.rebuildStatic();
+    });
+    this.layout.side.append(
+      h('section', { className: 'panel' }, [
+        h('h2', { textContent: '物理テスト' }),
+        h('p', { className: 'muted', textContent: '盤面をクリックすると玉を落とします。' }),
+        h('label', {}, [toggle, ' 当たり判定を表示']),
+        this.statusEl,
+      ]),
     );
   }
 }

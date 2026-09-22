@@ -13,6 +13,23 @@ test('盤面が WebGL で描画される', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test('クリックした位置に玉を落とせる', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => (window.__pachi?.renderer.frames ?? 0) > 2);
+  const pos = await page.evaluate(() => {
+    const a = window.__pachi!;
+    const r = a.layout.canvas.getBoundingClientRect();
+    const s = a.renderer.camera.boardToScreen(560, 330);
+    return { x: r.left + s.x, y: r.top + s.y };
+  });
+  await page.mouse.click(pos.x, pos.y);
+  expect(await page.evaluate(() => window.__pachi!.physics.ballCount)).toBe(1);
+  // 玉は釘で跳ねて、やがてアウト口で回収される
+  await page.waitForFunction(() => window.__pachi!.collected.pocket >= 1, null, {
+    timeout: 20_000,
+  });
+});
+
 test('リサイズに追従する', async ({ page }) => {
   await page.goto('/');
   await page.waitForFunction(() => (window.__pachi?.renderer.frames ?? 0) > 2);
