@@ -698,3 +698,48 @@ progress {
 .legend.jp {
   color: #ffd24a;
 }
+
+/* ---- デバッグ ---- */
+
+details.debug summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+details.debug[open] summary {
+  margin-bottom: 8px;
+}
+
+.perf {
+  margin: 0 0 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #140a16;
+  color: var(--ok);
+  font:
+    11px/1.5 ui-monospace,
+    Consolas,
+    monospace;
+  white-space: pre-wrap;
+}
+
+.materials input.num {
+  width: 4.5em;
+}
+
+.context-lost {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  transform: translateX(-50%);
+  padding: 12px 18px;
+  border-radius: 8px;
+  background: rgba(20, 0, 20, 0.9);
+  border: 1px solid var(--danger);
+  color: var(--text);
+}
+
+.context-lost[hidden] {
+  display: none;
+}

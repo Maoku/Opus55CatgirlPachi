@@ -37,6 +37,7 @@ import { SpriteLayer, type Sprite } from '@/render/SpriteLayer';
 import { buildDynamicScene, buildStaticScene } from '@/render/SceneBuilder';
 import { h } from '@/ui/dom';
 import { AutoPlayPanel } from '@/ui/AutoPlayPanel';
+import { DebugPanel } from '@/ui/DebugPanel';
 import { GamePanel } from '@/ui/GamePanel';
 import { HandleDial } from '@/ui/HandleDial';
 import { Hud } from '@/ui/Hud';
@@ -78,6 +79,15 @@ export class App {
   gamePanel!: GamePanel;
   autoPlay!: AutoPlayController;
   autoPanel!: AutoPlayPanel;
+  debugPanel!: DebugPanel;
+  /** 直近の処理時間 (デバッグパネルに出す) */
+  readonly perf = { fps: 0, stepMs: 0, drawMs: 0, steps: 0, balls: 0, particles: 0 };
+  private stepTime = 0;
+  private perfTimer = 0;
+  private readonly lostBanner = h('div', {
+    className: 'context-lost',
+    textContent: '描画が一時的に止まっています (GPU のリセット)。復帰を待っています…',
+  });
   editorPanel!: EditorPanel;
   filePanel!: FilePanel;
   playController!: PlayController;
@@ -104,6 +114,9 @@ export class App {
     this.layout = createLayout(root);
     this.renderer = new Renderer(this.layout.canvas, this.layout.stage);
     this.labels = new OverlayLabels(this.layout.overlay);
+    this.lostBanner.hidden = true;
+    this.layout.overlay.append(this.lostBanner);
+    this.renderer.onContextLost = (lost) => (this.lostBanner.hidden = !lost);
   }
 
   async start(): Promise<void> {
@@ -140,7 +153,9 @@ export class App {
       {
         step: (dt) => this.step(dt),
         render: (info) => {
+          const t0 = performance.now();
           if (info.draw) this.draw(info.realDt);
+          this.measure(info.realDt, info.steps, performance.now() - t0);
         },
       },
       this.board.physics.timestep,
@@ -283,6 +298,12 @@ export class App {
   // ---- ループ ----
 
   private step(dt: number): void {
+    const t0 = performance.now();
+    this.stepInner(dt);
+    this.stepTime += performance.now() - t0;
+  }
+
+  private stepInner(dt: number): void {
     if (this.mode === 'edit') {
       this.game.testStep(dt, this.testFire);
       return;
@@ -414,6 +435,24 @@ export class App {
     }
   }
 
+  /** 処理時間を平滑化して記録し、ときどきデバッグパネルに出す */
+  private measure(realDt: number, steps: number, drawMs: number): void {
+    const p = this.perf;
+    const k = 0.1;
+    if (realDt > 0) p.fps += (1 / realDt - p.fps) * k;
+    p.stepMs += (this.stepTime - p.stepMs) * k;
+    p.drawMs += (drawMs - p.drawMs) * k;
+    p.steps = steps;
+    p.balls = this.physics.ballCount;
+    p.particles = this.effects.particleCount;
+    this.stepTime = 0;
+    this.perfTimer -= realDt;
+    if (this.perfTimer <= 0) {
+      this.perfTimer = 0.5;
+      this.debugPanel.updatePerf(p);
+    }
+  }
+
   updateUi(): void {
     this.hud.update();
     this.gamePanel.update(this.mode === 'play');
@@ -460,6 +499,7 @@ export class App {
       stop: () => this.stopAutoPlay(),
       speed: (sp) => this.setAutoSpeed(sp),
     });
+    this.debugPanel = new DebugPanel(this.editor);
     this.playPanel.append(
       this.hud.el,
       this.autoPanel.el,
@@ -471,6 +511,7 @@ export class App {
           textContent: 'Shift+クリックで盤面に玉を落とせます (デバッグ用)。',
         }),
       ]),
+      this.debugPanel.el,
     );
 
     this.editorPanel = new EditorPanel(this.editor);

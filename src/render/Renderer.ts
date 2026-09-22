@@ -37,6 +37,8 @@ export class Renderer {
   frames = 0;
   /** 寸法が変わったときに呼ばれる */
   onResize: (() => void) | null = null;
+  /** コンテキストを失ったとき (true) と復帰したとき (false) に呼ばれる */
+  onContextLost: ((lost: boolean) => void) | null = null;
 
   private programs: ProgramCache;
   private readonly observer: ResizeObserver;
@@ -65,11 +67,13 @@ export class Renderer {
     canvas.addEventListener('webglcontextlost', (e) => {
       e.preventDefault();
       this.contextLost = true;
+      this.onContextLost?.(true);
     });
     canvas.addEventListener('webglcontextrestored', () => {
       this.programs = new ProgramCache(this.gl);
       this.initLayers();
       this.contextLost = false;
+      this.onContextLost?.(false);
     });
 
     this.observer = new ResizeObserver(() => this.resize());
