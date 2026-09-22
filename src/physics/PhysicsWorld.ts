@@ -56,6 +56,9 @@ const STATIC_GROUPS = groups(G_STATIC, G_BALL);
 const WINDMILL_GROUPS = groups(G_WINDMILL, G_BALL);
 const SENSOR_GROUPS = groups(G_SENSOR, G_BALL);
 
+/** イベントがないステップで返す空配列 (毎ステップの割り当てを避ける) */
+const NO_EVENTS: readonly PhysicsEvent[] = Object.freeze([]);
+
 /** 滞留・範囲外の判定を何ステップごとに行うか */
 const HOUSEKEEPING_INTERVAL = 8;
 /** 風車の羽根の厚み (cm) */
@@ -81,6 +84,24 @@ export class PhysicsWorld {
   private readonly windmills: { def: WindmillObject; body: RigidBody }[] = [];
   private readonly playfield: Vec2[];
   private events: PhysicsEvent[] = [];
+  // 毎ステップの割り当てを減らすため、作業用の配列とベクトルを使い回す
+  private readonly hitBalls: BallState[] = [];
+  private readonly hitInfos: SensorInfo[] = [];
+  private readonly tmpVec = { x: 0, y: 0 };
+  private readonly tmpPoint = { x: 0, y: 0 };
+  private readonly onCollision = (h1: number, h2: number, started: boolean): void => {
+    if (!started) return;
+    let ball = this.ballByCollider.get(h1);
+    let info = this.sensors.get(h2);
+    if (!ball || !info) {
+      ball = this.ballByCollider.get(h2);
+      info = this.sensors.get(h1);
+    }
+    if (ball && info) {
+      this.hitBalls.push(ball);
+      this.hitInfos.push(info);
+    }
+  };
   private nextBallId = 1;
   private disposed = false;
 
@@ -281,8 +302,9 @@ export class PhysicsWorld {
   /** 玉の位置 (盤面 px) を列挙する */
   forEachBall(fn: (x: number, y: number, id: number) => void): void {
     const k = this.units.pxPerCm;
+    const t = this.tmpVec;
     for (const b of this.balls.values()) {
-      const t = b.body.translation();
+      b.body.translation(t);
       fn(t.x * k, t.y * k, b.id);
     }
   }
@@ -330,18 +352,12 @@ export class PhysicsWorld {
     this.simTime += dt;
     this.stepCount++;
 
-    const hits: { ball: BallState; info: SensorInfo }[] = [];
-    this.eventQueue.drainCollisionEvents((h1, h2, started) => {
-      if (!started) return;
-      let ball = this.ballByCollider.get(h1);
-      let info = this.sensors.get(h2);
-      if (!ball || !info) {
-        ball = this.ballByCollider.get(h2);
-        info = this.sensors.get(h1);
-      }
-      if (ball && info) hits.push({ ball, info });
-    });
-    for (const { ball, info } of hits) {
+    const balls = this.hitBalls;
+    const infos = this.hitInfos;
+    this.eventQueue.drainCollisionEvents(this.onCollision);
+    for (let i = 0; i < balls.length; i++) {
+      const ball = balls[i]!;
+      const info = infos[i]!;
       if (!this.balls.has(ball.id)) continue; // 同じステップで別の入賞口に入った
       if (info.role === 'gate') {
         this.events.push({ type: 'gate', ballId: ball.id, objectId: info.object.id });
@@ -357,6 +373,8 @@ export class PhysicsWorld {
         });
       }
     }
+    balls.length = 0;
+    infos.length = 0;
 
     if (this.stepCount % HOUSEKEEPING_INTERVAL === 0) this.housekeeping(dt * HOUSEKEEPING_INTERVAL);
   }
@@ -365,28 +383,34 @@ export class PhysicsWorld {
   private housekeeping(elapsed: number): void {
     const p = this.params;
     const k = this.units.pxPerCm;
-    const lost: { id: number; reason: LostReason }[] = [];
+    let lost: { id: number; reason: LostReason }[] | null = null;
+    const t = this.tmpVec;
+    const pt = this.tmpPoint;
     for (const b of this.balls.values()) {
-      const t = b.body.translation();
-      if (!pointInPolygon({ x: t.x * k, y: t.y * k }, this.playfield)) {
-        lost.push({ id: b.id, reason: 'outside' });
+      b.body.translation(t);
+      pt.x = t.x * k;
+      pt.y = t.y * k;
+      if (!pointInPolygon(pt, this.playfield)) {
+        (lost ??= []).push({ id: b.id, reason: 'outside' });
         continue;
       }
-      const v = b.body.linvel();
+      const v = b.body.linvel(t);
       if (Math.hypot(v.x, v.y) < p.stallSpeed) {
         b.stall += elapsed;
-        if (b.stall >= p.stallTime) lost.push({ id: b.id, reason: 'stall' });
+        if (b.stall >= p.stallTime) (lost ??= []).push({ id: b.id, reason: 'stall' });
       } else {
         b.stall = 0;
       }
     }
+    if (!lost) return;
     for (const l of lost) {
       this.removeBall(l.id);
       this.events.push({ type: 'lost', ballId: l.id, reason: l.reason });
     }
   }
 
-  drainEvents(): PhysicsEvent[] {
+  drainEvents(): readonly PhysicsEvent[] {
+    if (this.events.length === 0) return NO_EVENTS;
     const e = this.events;
     this.events = [];
     return e;

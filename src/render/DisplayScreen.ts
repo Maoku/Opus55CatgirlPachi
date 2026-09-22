@@ -53,7 +53,7 @@ function drawPaw(ctx: CanvasRenderingContext2D, size: number, color: string) {
   }
 }
 
-/** 数字の図柄を (cx, cy) を中心に描く */
+/** 数字の図柄を (cx, cy) を中心に描く (毎回ベクターで描く。通常は symbolImage を使う) */
 export function drawSymbol(
   ctx: CanvasRenderingContext2D,
   n: number,
@@ -84,6 +84,38 @@ export function drawSymbol(
   ctx.fillStyle = grad;
   ctx.fillText(String(n), 0, size * 0.04);
   ctx.restore();
+}
+
+/** 図柄の一辺 (px) */
+const SYMBOL_SIZE = 120;
+const symbolCache = new Map<string, HTMLCanvasElement>();
+
+/**
+ * 図柄を一度だけキャンバスに描いて使い回す。回転中は毎フレーム 6 個ほど描くので、
+ * グラデーション付きの文字を毎回描かないようにする
+ */
+function symbolImage(n: number, glow: boolean): HTMLCanvasElement {
+  const key = `${n}:${glow ? 1 : 0}`;
+  let c = symbolCache.get(key);
+  if (!c) {
+    c = document.createElement('canvas');
+    // 光彩がはみ出す分の余白を取る
+    c.width = c.height = SYMBOL_SIZE * 1.6;
+    drawSymbol(c.getContext('2d')!, n, c.width / 2, c.height / 2, SYMBOL_SIZE, glow ? 1 : 0);
+    symbolCache.set(key, c);
+  }
+  return c;
+}
+
+function blitSymbol(
+  ctx: CanvasRenderingContext2D,
+  n: number,
+  cx: number,
+  cy: number,
+  glow = false,
+) {
+  const img = symbolImage(n, glow);
+  ctx.drawImage(img, Math.round(cx - img.width / 2), Math.round(cy - img.height / 2));
 }
 
 function bigText(
@@ -176,7 +208,7 @@ export class DisplayScreen {
     if (!s) {
       for (let i = 0; i < 3; i++) {
         this.reelBox(i, false);
-        drawSymbol(ctx, this.lastSymbols[i]!, REEL_X[i]!, REEL_Y, 120);
+        blitSymbol(ctx, this.lastSymbols[i]!, REEL_X[i]!, REEL_Y);
       }
       return;
     }
@@ -191,12 +223,12 @@ export class DisplayScreen {
       roundRect(ctx, REEL_X[i]! - REEL_W / 2, REEL_Y - REEL_H / 2, REEL_W, REEL_H, 18);
       ctx.clip();
       if (f.stopped) {
-        drawSymbol(ctx, f.symbol, REEL_X[i]!, REEL_Y, 120, winning ? 1 : 0);
+        blitSymbol(ctx, f.symbol, REEL_X[i]!, REEL_Y, winning);
       } else {
         // 回転中は上から下へ流れる
         ctx.globalAlpha = 0.85;
-        drawSymbol(ctx, f.symbol, REEL_X[i]!, REEL_Y + f.offset * REEL_H, 120);
-        drawSymbol(ctx, f.next, REEL_X[i]!, REEL_Y + (f.offset - 1) * REEL_H, 120);
+        blitSymbol(ctx, f.symbol, REEL_X[i]!, REEL_Y + f.offset * REEL_H);
+        blitSymbol(ctx, f.next, REEL_X[i]!, REEL_Y + (f.offset - 1) * REEL_H);
       }
       ctx.restore();
     }

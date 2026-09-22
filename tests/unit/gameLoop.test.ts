@@ -66,7 +66,7 @@ describe('GameLoop', () => {
 
   it('最大速度では予算いっぱいまで進め、描画を間引く', () => {
     const { loop, log } = makeLoop(0.5);
-    loop.stepBudgetMs = 12;
+    loop.maxSpeedBudgetMs = 12;
     loop.speed = SPEED_MAX;
     loop.maxSpeedRenderInterval = 3;
     run(loop, 29);

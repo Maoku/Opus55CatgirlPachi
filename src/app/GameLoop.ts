@@ -27,6 +27,8 @@ export class GameLoop {
   maxStepsPerFrame = 2400;
   /** 1 フレームで物理に使ってよい時間 (ms) */
   stepBudgetMs = 12;
+  /** 最大速度のときの予算。描画を間引くぶん多めに使う */
+  maxSpeedBudgetMs = 14;
   /** 最大速度のとき何フレームに 1 回描くか */
   maxSpeedRenderInterval = 3;
 
@@ -56,11 +58,12 @@ export class GameLoop {
       const unlimited = this.speed === SPEED_MAX;
       if (!unlimited) this.acc += realDt * this.speed;
       const eps = this.fixedDt * 1e-6;
+      const budget = unlimited ? this.maxSpeedBudgetMs : this.stepBudgetMs;
       while (steps < this.maxStepsPerFrame) {
         // ステップの中で一時停止・減速されたら (大当りで等倍に戻すなど)、すぐに反映する
         if (this.paused || (unlimited && this.speed !== SPEED_MAX)) break;
         if (!unlimited && this.acc < this.fixedDt - eps) break;
-        if (this.clock() - t0 >= this.stepBudgetMs) {
+        if (this.clock() - t0 >= budget) {
           this.saturated = true;
           break;
         }
