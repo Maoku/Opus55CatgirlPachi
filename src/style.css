@@ -1,0 +1,32 @@
+:root {
+  color-scheme: dark;
+  --bg: #120812;
+  --panel: #1e1020;
+  --panel-2: #2a1630;
+  --border: #4a2850;
+  --text: #f6e8f4;
+  --muted: #b89ab8;
+  --accent: #ff5fa8;
+  --accent-2: #ffd24a;
+  --danger: #ff5566;
+  --ok: #5fe0a0;
+  font-family: 'Segoe UI', 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo', sans-serif;
+  font-size: 14px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+}
+
+#app {
+  height: 100%;
+}
