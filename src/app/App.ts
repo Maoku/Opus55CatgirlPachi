@@ -1,4 +1,11 @@
 import characterUrl from '@/assets/character.png';
+import {
+  DEFAULT_AUTO_CONFIG,
+  normalizeConfig,
+  type AutoPlayConfig,
+  type AutoSpeed,
+} from '@/auto/AutoPlayConfig';
+import { AutoPlayController } from '@/auto/AutoPlayController';
 import pachiUrl from '@/assets/pachi.png';
 import { createDefaultBoard } from '@/board/defaultBoard';
 import { loadBoardLocal, loadJson, saveJson } from '@/board/storage';
@@ -28,12 +35,13 @@ import { Renderer } from '@/render/Renderer';
 import { SpriteLayer, type Sprite } from '@/render/SpriteLayer';
 import { buildDynamicScene, buildStaticScene } from '@/render/SceneBuilder';
 import { h } from '@/ui/dom';
+import { AutoPlayPanel } from '@/ui/AutoPlayPanel';
 import { GamePanel } from '@/ui/GamePanel';
 import { HandleDial } from '@/ui/HandleDial';
 import { Hud } from '@/ui/Hud';
 import { createLayout, type Layout } from '@/ui/layout';
 import { EditController } from './EditController';
-import { GameLoop } from './GameLoop';
+import { GameLoop, SPEED_MAX } from './GameLoop';
 import { KeyRouter } from './input';
 import { PlayController } from './PlayController';
 
@@ -42,6 +50,7 @@ const HANDLE = { x: 925, y: 1250, r: 100 };
 /** 編集してから物理ワールドを作り直すまでの待ち時間 (ms) */
 const PHYSICS_REBUILD_DELAY = 150;
 const EDITOR_SETTINGS_KEY = 'pachi.editorSettings';
+const AUTOPLAY_KEY = 'pachi.autoplay';
 
 export type Mode = 'play' | 'edit';
 
@@ -65,6 +74,8 @@ export class App {
   hud!: Hud;
   dial!: HandleDial;
   gamePanel!: GamePanel;
+  autoPlay!: AutoPlayController;
+  autoPanel!: AutoPlayPanel;
   editorPanel!: EditorPanel;
   filePanel!: FilePanel;
   playController!: PlayController;
@@ -106,6 +117,11 @@ export class App {
     this.board = loadBoardLocal() ?? createDefaultBoard();
     this.physics = new PhysicsWorld(rapier, this.board);
     this.game = new Game(this.physics, this.board, { seed: randomSeed() });
+    this.autoPlay = new AutoPlayController(this.game);
+    this.autoPlay.bus.on('finished', () => {
+      this.loop.speed = 1;
+      this.updateUi();
+    });
     this.setupEditor();
     this.game.machine.bus.on('jackpotStart', () => this.cutIn.trigger(this.game.time));
     this.buildUi();
@@ -160,6 +176,7 @@ export class App {
     this.editController.enabled = edit;
     if (edit) {
       this.playController.release();
+      this.autoPlay.stop();
     } else {
       this.flushPhysicsRebuild();
       this.renderer.camera.fit();
@@ -257,8 +274,61 @@ export class App {
   // ---- ループ ----
 
   private step(dt: number): void {
-    if (this.mode === 'play') this.game.step(dt);
-    else this.game.testStep(dt, this.testFire);
+    if (this.mode === 'edit') {
+      this.game.testStep(dt, this.testFire);
+      return;
+    }
+    const auto = this.autoPlay;
+    if (auto.status === 'running' || auto.status === 'draining') {
+      auto.beforeStep();
+      this.game.step(dt);
+      auto.afterStep(dt);
+    } else {
+      this.game.step(dt);
+    }
+  }
+
+  // ---- 自動プレイ ----
+
+  /**
+   * 自動プレイを始める。盤面の物理ワールドを作り直し、シードでゲームをリセットするので、
+   * 同じシード・同じ盤面なら同じ結果になる
+   */
+  startAutoPlay(config: AutoPlayConfig): void {
+    if (this.mode === 'edit') this.setMode('play');
+    saveJson(AUTOPLAY_KEY, config);
+    const seed = config.seed ?? randomSeed();
+    this.game.reset(seed, config.initialBalls);
+    this.rebuildPhysics();
+    this.autoPlay.begin(config, this.board.name);
+    this.setAutoSpeed(config.speed);
+    this.loop.paused = false;
+    this.loop.resetClock();
+    this.updateUi();
+  }
+
+  setAutoSpeed(speed: AutoSpeed): void {
+    this.loop.speed = speed === 'max' ? SPEED_MAX : speed;
+  }
+
+  pauseAutoPlay(): void {
+    this.autoPlay.pause();
+    this.loop.paused = true;
+    this.updateUi();
+  }
+
+  resumeAutoPlay(): void {
+    this.autoPlay.resume();
+    this.loop.paused = false;
+    this.loop.resetClock();
+    this.updateUi();
+  }
+
+  stopAutoPlay(): void {
+    this.autoPlay.stop();
+    this.loop.paused = false;
+    this.loop.speed = 1;
+    this.updateUi();
   }
 
   private setupDisplay(character: HTMLImageElement): void {
@@ -309,6 +379,7 @@ export class App {
   updateUi(): void {
     this.hud.update();
     this.gamePanel.update(this.mode === 'play');
+    this.autoPanel.update();
     this.dial.update();
     const s = String(Math.round(this.game.launcher.strength * 100));
     if (this.testStrength.value !== s) this.testStrength.value = s;
@@ -343,8 +414,17 @@ export class App {
       this.showColliders = colliders.checked;
       this.rebuildStatic();
     });
+    const savedAuto = normalizeConfig(loadJson(AUTOPLAY_KEY, DEFAULT_AUTO_CONFIG));
+    this.autoPanel = new AutoPlayPanel(this.autoPlay, this.game, savedAuto, {
+      start: (c) => this.startAutoPlay(c),
+      pause: () => this.pauseAutoPlay(),
+      resume: () => this.resumeAutoPlay(),
+      stop: () => this.stopAutoPlay(),
+      speed: (sp) => this.setAutoSpeed(sp),
+    });
     this.playPanel.append(
       this.hud.el,
+      this.autoPanel.el,
       h('section', { className: 'panel' }, [
         h('h2', { textContent: '表示' }),
         h('label', { className: 'check' }, [colliders, '当たり判定を表示']),
@@ -356,6 +436,10 @@ export class App {
     );
 
     this.editorPanel = new EditorPanel(this.editor);
+    const autoFromEditor = h('button', { textContent: 'この盤面で自動プレイ (前回の設定)' });
+    autoFromEditor.addEventListener('click', () =>
+      this.startAutoPlay(this.autoPanel.currentConfig),
+    );
     this.testFireButton.addEventListener('click', () => this.setTestFire(!this.testFire));
     this.testStrength.addEventListener('input', () => {
       launcher.setStrength(Number(this.testStrength.value) / 100);
@@ -371,6 +455,7 @@ export class App {
           textContent:
             'その場の盤面で物理だけを動かして玉の流れを確認します (集計には含めません)。',
         }),
+        autoFromEditor,
       ]),
       new WarningsPanel(this.editor, (ids) => this.focusObjects(ids)).el,
       (this.filePanel = new FilePanel(this.editor)).el,

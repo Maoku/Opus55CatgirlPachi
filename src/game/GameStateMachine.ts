@@ -72,17 +72,36 @@ export class GameStateMachine {
   readonly fuzu: FuzuState = { holds: 0, spinning: false, timer: 0, win: false, openTimer: 0 };
   readonly lids: Record<LidKind, boolean> = { electric: false, attacker: false };
   private forceNext = false;
-  private readonly holdRng: SeededRng;
-  private readonly judgeRng: SeededRng;
-  private readonly fuzuRng: SeededRng;
+  private holdRng!: SeededRng;
+  private judgeRng!: SeededRng;
+  private fuzuRng!: SeededRng;
 
   constructor(
     readonly spec: GameSpec,
     rng: SeededRng,
   ) {
+    this.seed(rng);
+  }
+
+  private seed(rng: SeededRng): void {
     this.holdRng = rng.fork('holds');
     this.judgeRng = rng.fork('judge');
     this.fuzuRng = rng.fork('fuzu');
+  }
+
+  /** 初期状態 (通常・保留なし・役物は閉) に戻す。購読者はそのまま残る */
+  reset(rng: SeededRng): void {
+    this.seed(rng);
+    this.holds = [];
+    this.spin = null;
+    this.jackpot = null;
+    this.supportLeft = 0;
+    this.spinCount = 0;
+    this.forceNext = false;
+    Object.assign(this.fuzu, { holds: 0, spinning: false, timer: 0, win: false, openTimer: 0 });
+    this.setLid('electric', false);
+    this.setLid('attacker', false);
+    this.setMode('normal');
   }
 
   /** 電サポ中 (ST・時短) */

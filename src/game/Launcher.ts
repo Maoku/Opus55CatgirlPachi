@@ -30,7 +30,7 @@ export class Launcher {
 
   constructor(
     public def: LauncherDef,
-    private readonly rng: SeededRng,
+    private rng: SeededRng,
   ) {}
 
   get interval(): number {
@@ -85,5 +85,14 @@ export class Launcher {
 
   reset(): void {
     this.cooldown = 0;
+  }
+
+  /** 乱数を差し替えて、ハンドル操作も含めて初期状態に戻す */
+  reseed(rng: SeededRng): void {
+    this.rng = rng;
+    this.cooldown = 0;
+    this.holding = false;
+    this.locked = false;
+    this.blocked = false;
   }
 }

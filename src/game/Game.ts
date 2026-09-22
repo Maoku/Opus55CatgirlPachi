@@ -34,7 +34,9 @@ export function emptyPocketCounts(): PocketCounts {
  */
 export class Game {
   readonly bus = new EventBus<GameEvents>();
-  readonly rng: SeededRng;
+  rng: SeededRng;
+  /** 現在のシード */
+  seed: number;
   readonly spec: GameSpec;
   readonly machine: GameStateMachine;
   readonly launcher: Launcher;
@@ -75,6 +77,7 @@ export class Game {
     readonly options: GameOptions,
   ) {
     this.spec = options.spec ?? DEFAULT_SPEC;
+    this.seed = options.seed;
     this.rng = new SeededRng(options.seed);
     this.machine = new GameStateMachine(this.spec, this.rng.fork('machine'));
     this.launcher = new Launcher(board.launcher, this.rng.fork('launcher'));
@@ -119,6 +122,35 @@ export class Game {
     // 作り直したワールドの蓋を今の状態に合わせる
     this.applyLid('electric', this.machine.lids.electric);
     this.applyLid('attacker', this.machine.lids.attacker);
+  }
+
+  /**
+   * シードを指定して最初からやり直す (自動プレイの開始時など)。
+   * 盤面上の玉は取り除く。状態機械などへの購読はそのまま残る。
+   */
+  reset(seed: number, initialBalls = this.options.initialBalls ?? this.spec.initialBalls): void {
+    this.seed = seed;
+    this.rng = new SeededRng(seed);
+    this.machine.reset(this.rng.fork('machine'));
+    this.launcher.reseed(this.rng.fork('launcher'));
+    this.testLauncher.reseed(this.rng.fork('test'));
+    this.balls.clear();
+    this.time = 0;
+    this.held = initialBalls;
+    this.launched = 0;
+    this.fouls = 0;
+    this.payout = 0;
+    this.lost = 0;
+    Object.assign(this.pockets, emptyPocketCounts());
+    Object.assign(this.payoutByKind, emptyPocketCounts());
+    this.invested = 0;
+    this.lent = 0;
+    this.jackpots = 0;
+    this.firstHits = 0;
+    this.spinsSinceJackpot = 0;
+    this.normalLaunched = 0;
+    this.normalPayout = 0;
+    this.normalSpins = 0;
   }
 
   /** 差玉 = 総賞球 − 発射数 */
