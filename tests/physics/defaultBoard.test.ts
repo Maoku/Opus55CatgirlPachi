@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_AUTO_CONFIG } from '@/auto/AutoPlayConfig';
+import { AutoPlayController } from '@/auto/AutoPlayController';
+import { runHeadless } from '@/auto/runHeadless';
 import { analyzeBoard } from '@/board/analysis';
 import { createDefaultBoard } from '@/board/defaultBoard';
 import { Game } from '@/game/Game';
+import { DEFAULT_SPEC } from '@/game/GameSpec';
 import { PhysicsWorld } from '@/physics/PhysicsWorld';
 import { loadRapier } from '@/physics/rapier';
 
@@ -65,5 +69,24 @@ describe('デフォルト盤面', () => {
     const { game } = await play(0.9, 40, { lidsOpen: true });
     expect(game.pockets.electric + game.pockets.attacker).toBeGreaterThan(30);
     expect(game.lost).toBe(0);
+  }, 120_000);
+
+  it('左打ちの回転率は千円あたり 18〜20 回程度 (自動プレイで計測)', async () => {
+    const R = await loadRapier();
+    const board = createDefaultBoard();
+    // 回転率だけを見るので大当りは起こさない
+    const spec = { ...structuredClone(DEFAULT_SPEC), jackpotProb: 0, stJackpotProb: 0 };
+    const game = new Game(new PhysicsWorld(R, board), board, { seed: 1, spec });
+    game.reset(2, 0);
+    const auto = new AutoPlayController(game);
+    auto.begin(
+      { ...DEFAULT_AUTO_CONFIG, maxShots: 2000, leftStrength: 0.25, seed: 2, maxInvest: 1e9 },
+      board.name,
+    );
+    const report = runHeadless(game, auto)!;
+    game.physics.dispose();
+    // 標本が少ないとばらつくので幅を持たせる
+    expect(report.rotationRate).toBeGreaterThan(15);
+    expect(report.rotationRate).toBeLessThan(25);
   }, 120_000);
 });
