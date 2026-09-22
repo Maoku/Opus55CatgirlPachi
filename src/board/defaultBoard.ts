@@ -1,7 +1,8 @@
-import { createSampleBoard } from './sampleBoard';
+import defaultJson from '@/assets/boards/default.json';
+import { parseBoard } from './migrate';
 import type { BoardData } from './types';
 
-/** デフォルト盤面 (リセット時にもこれに戻す) */
+/** pachi.png に合わせて作ったデフォルト盤面 (リセット時にもこれに戻す) */
 export function createDefaultBoard(): BoardData {
-  return createSampleBoard();
+  return parseBoard(structuredClone(defaultJson));
 }

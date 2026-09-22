@@ -77,8 +77,9 @@ test('何もない所からドラッグすると矩形選択になる', async ({
   await ready(page);
   await page.locator('#view').focus();
   await page.keyboard.press('e');
-  const a = await toPage(page, 280, 370);
-  const b = await toPage(page, 560, 420);
+  // 役物の上の天釘を囲む
+  const a = await toPage(page, 340, 250);
+  const b = await toPage(page, 710, 322);
   await page.mouse.move(a.x, a.y);
   await page.mouse.down();
   await page.mouse.move(b.x, b.y, { steps: 4 });

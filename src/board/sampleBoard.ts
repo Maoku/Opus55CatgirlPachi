@@ -13,7 +13,17 @@ import {
  * レールの寸法 (盤面 px)。外レールは pachi.png の円形枠の内側に沿う円弧で、
  * 左右の下半分は枠に合わせてまっすぐ下ろす。
  */
-export const RAIL = {
+export interface RailParams {
+  cx: number;
+  cy: number;
+  r: number;
+  channel: number;
+  floorY: number;
+  innerTipDeg: number;
+  rightStraight: number;
+}
+
+export const RAIL: RailParams = {
   cx: 560,
   cy: 700,
   /** 外レールの半径 */
@@ -28,15 +38,23 @@ export const RAIL = {
   rightStraight: 180,
 };
 
-const arc = (r: number, fromDeg: number, toDeg: number, stepDeg: number): Vec2[] => {
+/** 中心 (cx, cy)・半径 r の円弧を stepDeg 度ごとの点列にする */
+export function arcPoints(
+  cx: number,
+  cy: number,
+  r: number,
+  fromDeg: number,
+  toDeg: number,
+  stepDeg: number,
+): Vec2[] {
   const pts: Vec2[] = [];
   const n = Math.max(1, Math.round(Math.abs(toDeg - fromDeg) / stepDeg));
   for (let i = 0; i <= n; i++) {
     const a = ((fromDeg + ((toDeg - fromDeg) * i) / n) * Math.PI) / 180;
-    pts.push(roundPoint({ x: RAIL.cx + Math.cos(a) * r, y: RAIL.cy + Math.sin(a) * r }));
+    pts.push(roundPoint({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r }));
   }
   return pts;
-};
+}
 
 export interface RailLayout {
   walls: BoardObject[];
@@ -46,11 +64,14 @@ export interface RailLayout {
 }
 
 /** 外レール・内レール・発射位置・ファール口をまとめて作る */
-export function buildRails(ballRadiusPx = 11.88): RailLayout {
-  const { cx, cy, r, channel, floorY } = RAIL;
+export function buildRails(params: Partial<RailParams> = {}, ballRadiusPx = 11.88): RailLayout {
+  const rail = { ...RAIL, ...params };
+  const { cx, cy, r, channel, floorY } = rail;
+  const arc = (radius: number, fromDeg: number, toDeg: number, stepDeg: number) =>
+    arcPoints(cx, cy, radius, fromDeg, toDeg, stepDeg);
   const left = cx - r;
   const right = cx + r;
-  const rightBottom = cy + RAIL.rightStraight;
+  const rightBottom = cy + rail.rightStraight;
   const outer: Vec2[] = [
     { x: left, y: floorY },
     ...arc(r, 180, 360, 2),
@@ -61,7 +82,7 @@ export function buildRails(ballRadiusPx = 11.88): RailLayout {
   ];
   const inner: Vec2[] = [
     { x: left + channel, y: floorY },
-    ...arc(r - channel, 180, RAIL.innerTipDeg, 2),
+    ...arc(r - channel, 180, rail.innerTipDeg, 2),
   ];
   const outHoleL = { x: 470, y: 1168 };
   const outHoleR = { x: 650, y: 1168 };

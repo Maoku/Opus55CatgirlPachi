@@ -21,7 +21,8 @@ test('Shift+クリックした位置に玉を落とせる', async ({ page }) => 
   const pos = await page.evaluate(() => {
     const a = window.__pachi!;
     const r = a.layout.canvas.getBoundingClientRect();
-    const s = a.renderer.camera.boardToScreen(560, 400);
+    // 外レールと役物のあいだ
+    const s = a.renderer.camera.boardToScreen(300, 330);
     return { x: r.left + s.x, y: r.top + s.y };
   });
   await page.keyboard.down('Shift');
