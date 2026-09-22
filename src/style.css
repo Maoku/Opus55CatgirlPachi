@@ -489,3 +489,116 @@ input.wide {
   margin-top: 4px;
   font-size: 12px;
 }
+
+/* ---- 抽選の表示 ---- */
+
+.game-panel {
+  margin: 6px 0;
+  padding: 8px 0;
+  border-top: 1px dashed var(--border);
+  border-bottom: 1px dashed var(--border);
+}
+
+.mode-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.mode-badge {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  font-weight: 700;
+}
+
+.mode-badge[data-mode='jackpot'] {
+  background: linear-gradient(90deg, #ff3d6e, #ffb13d);
+  color: #200010;
+  border-color: transparent;
+}
+
+.mode-badge[data-mode='st'] {
+  background: #ff5fa8;
+  color: #200010;
+}
+
+.mode-badge[data-mode='jitan'] {
+  background: #5fb8ff;
+  color: #001020;
+}
+
+.mode-detail {
+  color: var(--accent-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lamps-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.lamps {
+  display: inline-flex;
+  gap: 4px;
+  margin-right: 8px;
+}
+
+.lamp {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: #140a16;
+}
+
+.lamp.small {
+  width: 10px;
+  height: 10px;
+}
+
+.lamp.on {
+  background: radial-gradient(circle at 35% 35%, #fff, #ff5fa8 60%);
+  border-color: #ff5fa8;
+  box-shadow: 0 0 6px #ff5fa8;
+}
+
+.buttons {
+  margin-top: 6px;
+}
+
+button.debug {
+  border-style: dashed;
+  color: var(--muted);
+}
+
+.right-shot {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  background: rgba(255, 60, 120, 0.9);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  box-shadow: 0 0 16px rgba(255, 60, 120, 0.8);
+  display: none;
+  animation: blink 0.8s steps(2, jump-none) infinite;
+}
+
+.right-shot.on {
+  display: block;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.45;
+  }
+}

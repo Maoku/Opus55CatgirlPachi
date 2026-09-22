@@ -51,11 +51,13 @@ describe('デフォルト盤面', () => {
     expect(game.balls.count).toBe(0);
   }, 120_000);
 
-  it('右打ちでは普図ゲートを通り、アウト口へ流れる (蓋が閉じているとき)', async () => {
+  it('右打ちでは普図ゲートを通り、通常時は電チューがほとんど開かない', async () => {
     const { game, gates } = await play(0.9, 60);
     expect(gates).toBe(60);
     expect(game.pockets.start).toBe(0);
-    expect(game.pockets.electric + game.pockets.attacker).toBe(0);
+    // 通常時の普図は 1/10 で 0.2 秒しか開かない
+    expect(game.pockets.electric).toBeLessThan(6);
+    expect(game.pockets.attacker).toBe(0);
     expect(game.lost).toBe(0);
   }, 120_000);
 

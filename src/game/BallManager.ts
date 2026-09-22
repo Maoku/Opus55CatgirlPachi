@@ -9,6 +9,8 @@ export interface BallRecord {
   /** 発射した時刻 (シミュレーション時間) */
   bornAt: number;
   speed: number;
+  /** 通常時に打った玉か (回転率の集計に使う) */
+  normal: boolean;
 }
 
 /**
@@ -49,8 +51,10 @@ export class BallManager {
     });
   }
 
-  launch(order: LaunchOrder, time: number): BallRecord | null {
-    return this.spawn(order.x, order.y, order.vx, order.vy, 'launch', time, order.speed);
+  launch(order: LaunchOrder, time: number, normal = false): BallRecord | null {
+    const rec = this.spawn(order.x, order.y, order.vx, order.vy, 'launch', time, order.speed);
+    if (rec) rec.normal = normal;
+    return rec;
   }
 
   spawn(
@@ -64,8 +68,9 @@ export class BallManager {
   ): BallRecord | null {
     const id = this.physics.spawnBall(x, y, vx, vy);
     if (id < 0) return null;
-    const rec = this.pool.pop() ?? { id, origin, bornAt: time, speed };
+    const rec = this.pool.pop() ?? { id, origin, bornAt: time, speed, normal: false };
     rec.id = id;
+    rec.normal = false;
     rec.origin = origin;
     rec.bornAt = time;
     rec.speed = speed;

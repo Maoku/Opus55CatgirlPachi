@@ -1,15 +1,9 @@
 import type { BoardData, BoardObject, PocketKind, RotRect } from '@/board/types';
+import { DEFAULT_SPEC } from '@/game/GameSpec';
 import type { Vec2 } from '@/core/Vec2';
 
-/** 入賞口の種類ごとの既定の賞球数 (GameSpec の既定値と同じ) */
-export const DEFAULT_PAYOUT: Record<PocketKind, number> = {
-  start: 3,
-  electric: 1,
-  attacker: 15,
-  general: 10,
-  out: 0,
-  foul: 0,
-};
+/** 入賞口の種類ごとの既定の賞球数 (GameSpec の既定値) */
+export const DEFAULT_PAYOUT: Record<PocketKind, number> = DEFAULT_SPEC.payouts;
 
 export type RectKind = PocketKind | 'gate' | 'display';
 

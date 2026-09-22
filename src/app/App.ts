@@ -24,6 +24,7 @@ import { loadImage } from '@/render/gl/Texture';
 import { Renderer } from '@/render/Renderer';
 import { buildDynamicScene, buildStaticScene } from '@/render/SceneBuilder';
 import { h } from '@/ui/dom';
+import { GamePanel } from '@/ui/GamePanel';
 import { HandleDial } from '@/ui/HandleDial';
 import { Hud } from '@/ui/Hud';
 import { createLayout, type Layout } from '@/ui/layout';
@@ -34,7 +35,6 @@ import { PlayController } from './PlayController';
 
 /** 画像右下のハンドル部 (盤面 px) */
 const HANDLE = { x: 925, y: 1250, r: 100 };
-const INITIAL_BALLS = 1000;
 /** 編集してから物理ワールドを作り直すまでの待ち時間 (ms) */
 const PHYSICS_REBUILD_DELAY = 150;
 const EDITOR_SETTINGS_KEY = 'pachi.editorSettings';
@@ -55,6 +55,7 @@ export class App {
   editor!: Editor;
   hud!: Hud;
   dial!: HandleDial;
+  gamePanel!: GamePanel;
   editorPanel!: EditorPanel;
   filePanel!: FilePanel;
   playController!: PlayController;
@@ -90,10 +91,7 @@ export class App {
     // 前回編集した盤面があればそれを使う
     this.board = loadBoardLocal() ?? createDefaultBoard();
     this.physics = new PhysicsWorld(rapier, this.board);
-    this.game = new Game(this.physics, this.board, {
-      seed: randomSeed(),
-      initialBalls: INITIAL_BALLS,
-    });
+    this.game = new Game(this.physics, this.board, { seed: randomSeed() });
     this.setupEditor();
     this.buildUi();
     this.rebuildStatic();
@@ -176,6 +174,7 @@ export class App {
     this.editController.updateCursor();
     this.applyViewSettings();
     this.rebuildStatic();
+    this.updateUi();
   }
 
   setTestFire(on: boolean): void {
@@ -265,6 +264,7 @@ export class App {
 
   updateUi(): void {
     this.hud.update();
+    this.gamePanel.update(this.mode === 'play');
     this.dial.update();
     const s = String(Math.round(this.game.launcher.strength * 100));
     if (this.testStrength.value !== s) this.testStrength.value = s;
@@ -285,6 +285,8 @@ export class App {
       },
     });
     this.dial = new HandleDial(this.layout.overlay, launcher, () => this.updateUi());
+    this.gamePanel = new GamePanel(this.game, this.layout.overlay, () => this.updateUi());
+    this.hud.extra.append(this.gamePanel.el);
     this.playController = new PlayController(
       this.layout.canvas,
       this.renderer.camera,
