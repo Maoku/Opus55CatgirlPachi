@@ -1,3 +1,4 @@
+import characterUrl from '@/assets/character.png';
 import pachiUrl from '@/assets/pachi.png';
 import { createDefaultBoard } from '@/board/defaultBoard';
 import { loadBoardLocal, loadJson, saveJson } from '@/board/storage';
@@ -21,7 +22,10 @@ import { Game } from '@/game/Game';
 import { PhysicsWorld } from '@/physics/PhysicsWorld';
 import { loadRapier, type Rapier } from '@/physics/rapier';
 import { loadImage } from '@/render/gl/Texture';
+import { CutIn, makeCutInCard } from '@/render/CutIn';
+import { DisplayScreen } from '@/render/DisplayScreen';
 import { Renderer } from '@/render/Renderer';
+import { SpriteLayer, type Sprite } from '@/render/SpriteLayer';
 import { buildDynamicScene, buildStaticScene } from '@/render/SceneBuilder';
 import { h } from '@/ui/dom';
 import { GamePanel } from '@/ui/GamePanel';
@@ -47,6 +51,11 @@ export class App {
   readonly renderer: Renderer;
   readonly keys = new KeyRouter();
   readonly labels: OverlayLabels;
+  /** 液晶 (図柄・カットイン) */
+  readonly displayLayer = new SpriteLayer();
+  readonly screen = new DisplayScreen();
+  private screenSprite!: Sprite;
+  private cutIn!: CutIn;
   rapier!: Rapier;
   board!: BoardData;
   physics!: PhysicsWorld;
@@ -85,14 +94,20 @@ export class App {
   }
 
   async start(): Promise<void> {
-    const [rapier, image] = await Promise.all([loadRapier(), loadImage(pachiUrl)]);
+    const [rapier, image, character] = await Promise.all([
+      loadRapier(),
+      loadImage(pachiUrl),
+      loadImage(characterUrl),
+    ]);
     this.rapier = rapier;
     this.renderer.setBoardImage(image);
+    this.setupDisplay(character);
     // 前回編集した盤面があればそれを使う
     this.board = loadBoardLocal() ?? createDefaultBoard();
     this.physics = new PhysicsWorld(rapier, this.board);
     this.game = new Game(this.physics, this.board, { seed: randomSeed() });
     this.setupEditor();
+    this.game.machine.bus.on('jackpotStart', () => this.cutIn.trigger(this.game.time));
     this.buildUi();
     this.rebuildStatic();
 
@@ -246,8 +261,37 @@ export class App {
     else this.game.testStep(dt, this.testFire);
   }
 
+  private setupDisplay(character: HTMLImageElement): void {
+    this.renderer.insertLayerAfter(this.renderer.background, this.displayLayer);
+    // 描画順: 暗幕 → キャラクター → 図柄 (文字をキャラクターより手前に出す)
+    const white = document.createElement('canvas');
+    white.width = white.height = 1;
+    white.getContext('2d')!.fillRect(0, 0, 1, 1);
+    const dim = this.displayLayer.add(white);
+    const chara = this.displayLayer.add(makeCutInCard(character), { mipmap: true });
+    this.screenSprite = this.displayLayer.add(this.screen.canvas);
+    this.cutIn = new CutIn(chara, dim);
+  }
+
+  /** 液晶の図柄とカットインを、盤面の液晶領域に合わせて更新する */
+  private updateDisplay(): void {
+    const display = this.board.objects.find((o) => o.type === 'display');
+    const sprite = this.screenSprite;
+    sprite.visible = !!display;
+    if (!display) return;
+    const r = display.rect;
+    sprite.x = r.x;
+    sprite.y = r.y;
+    sprite.w = r.w;
+    sprite.h = r.h;
+    sprite.angle = (r.angle * Math.PI) / 180;
+    if (this.screen.render(this.game.machine, this.game.time)) sprite.markDirty();
+    this.cutIn.update(this.game.time, r);
+  }
+
   private draw(realDt: number): void {
     buildDynamicScene(this.renderer, this.physics);
+    this.updateDisplay();
     if (this.mode === 'edit') {
       this.editor.viewScale = this.renderer.camera.scale;
       drawEditorOverlay(this.editor, this.renderer, this.labels);

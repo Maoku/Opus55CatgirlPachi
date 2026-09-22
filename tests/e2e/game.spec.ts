@@ -17,6 +17,8 @@ test('大当り → 10R → ST または時短 → 通常 が一通り動く', a
     w.__rounds = 0;
     g.machine.bus.on('mode', ({ to }) => w.__modes.push(to));
     g.machine.bus.on('roundEnd', () => w.__rounds++);
+    // カットインを確認できるよう、大当りの瞬間に等倍へ戻す
+    g.machine.bus.on('jackpotStart', () => (a.loop.speed = 1));
     g.launcher.setStrength(0.9);
     g.launcher.locked = true;
     a.loop.speed = Infinity;
@@ -27,6 +29,14 @@ test('大当り → 10R → ST または時短 → 通常 が一通り動く', a
     null,
     { timeout: 60_000 },
   );
+  // 大当りの直後はキャラクターのカットインが液晶に出る
+  await page.waitForTimeout(700);
+  const visible = await page.evaluate(
+    () => window.__pachi!.displayLayer.sprites.filter((sp) => sp.visible).length,
+  );
+  expect(visible).toBe(3);
+  await page.screenshot({ path: 'Docs/screenshots/phase6-cutin.png' });
+  await page.evaluate(() => (window.__pachi!.loop.speed = Infinity));
   await page.waitForFunction(() => window.__pachi!.game.machine.jackpot?.phase === 'round', null, {
     timeout: 60_000,
   });
