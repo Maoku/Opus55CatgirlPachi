@@ -57,6 +57,8 @@ export class GameLoop {
       if (!unlimited) this.acc += realDt * this.speed;
       const eps = this.fixedDt * 1e-6;
       while (steps < this.maxStepsPerFrame) {
+        // ステップの中で一時停止・減速されたら (大当りで等倍に戻すなど)、すぐに反映する
+        if (this.paused || (unlimited && this.speed !== SPEED_MAX)) break;
         if (!unlimited && this.acc < this.fixedDt - eps) break;
         if (this.clock() - t0 >= this.stepBudgetMs) {
           this.saturated = true;

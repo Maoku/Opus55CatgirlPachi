@@ -80,4 +80,30 @@ describe('GameLoop', () => {
     loop.tick(5000);
     expect(log.steps).toBe(24);
   });
+
+  it('ステップの中で減速・一時停止されたら、そのフレームの残りは進めない', () => {
+    let clock = 0;
+    let steps = 0;
+    const loop: GameLoop = new GameLoop(
+      {
+        step: () => {
+          steps++;
+          clock += 0.01;
+          if (steps === 5) loop.speed = 1;
+          if (steps === 50) loop.paused = true;
+        },
+        render: () => {},
+      },
+      DT,
+      () => clock,
+    );
+    loop.speed = SPEED_MAX;
+    loop.tick(0);
+    expect(steps).toBe(5);
+    loop.speed = SPEED_MAX;
+    loop.tick(1000 / 60);
+    expect(steps).toBe(50);
+    loop.tick(2000 / 60);
+    expect(steps).toBe(50);
+  });
 });
