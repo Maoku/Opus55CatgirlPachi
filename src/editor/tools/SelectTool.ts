@@ -25,7 +25,7 @@ export class SelectTool extends Tool {
   readonly key = 'V';
   readonly hint =
     'クリックで選択、Shift で追加選択。ドラッグで移動、何もない所からドラッグで矩形選択';
-  override cursor = 'default';
+  override cssCursor = 'default';
   private drag: DragState | null = null;
 
   override down(e: ToolPointer): void {

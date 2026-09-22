@@ -30,7 +30,7 @@ export abstract class Tool {
   /** 切り替えキー (表示用) */
   abstract readonly key: string;
   abstract readonly hint: string;
-  cursor = 'crosshair';
+  cssCursor = 'crosshair';
 
   constructor(protected readonly editor: Editor) {}
 

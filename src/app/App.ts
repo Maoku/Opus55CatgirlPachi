@@ -5,7 +5,16 @@ import { randomSeed } from '@/core/SeededRng';
 import { Editor } from '@/editor/Editor';
 import { drawEditorOverlay, OverlayLabels } from '@/editor/EditorOverlay';
 import { EditorPanel } from '@/editor/EditorPanel';
+import { objectBounds } from '@/editor/objectOps';
+import { PropertyPanel } from '@/editor/PropertyPanel';
+import { NailLineTool } from '@/editor/tools/NailLineTool';
+import { NailTool } from '@/editor/tools/NailTool';
+import { PocketTool } from '@/editor/tools/PocketTool';
 import { SelectTool } from '@/editor/tools/SelectTool';
+import { VertexTool } from '@/editor/tools/VertexTool';
+import { WallTool } from '@/editor/tools/WallTool';
+import { WindmillTool } from '@/editor/tools/WindmillTool';
+import { WarningsPanel } from '@/editor/WarningsPanel';
 import { Game } from '@/game/Game';
 import { PhysicsWorld } from '@/physics/PhysicsWorld';
 import { loadRapier, type Rapier } from '@/physics/rapier';
@@ -49,12 +58,16 @@ export class App {
   mode: Mode = 'play';
   /** プレイ中に当たり判定を表示する */
   showColliders = false;
+  /** エディット中のテスト発射 */
+  testFire = false;
 
   private readonly startTime = performance.now();
   private hudTimer = 0;
   private rebuildTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly playPanel = h('div', { className: 'mode-panel' });
   private readonly editPanel = h('div', { className: 'mode-panel' });
+  private readonly testFireButton = h('button', { textContent: 'テスト発射 (T)' });
+  private readonly testStrength = h('input', { type: 'range', min: '0', max: '100', step: '1' });
   private readonly modeButtons = {
     play: h('button', { textContent: 'プレイ' }),
     edit: h('button', { textContent: 'エディット (E)' }),
@@ -96,6 +109,12 @@ export class App {
   private setupEditor(): void {
     const editor = new Editor(this.board);
     editor.registerTool(new SelectTool(editor));
+    editor.registerTool(new NailTool(editor));
+    editor.registerTool(new NailLineTool(editor));
+    editor.registerTool(new WallTool(editor));
+    editor.registerTool(new VertexTool(editor));
+    editor.registerTool(new WindmillTool(editor));
+    editor.registerTool(new PocketTool(editor));
     editor.setTool('select');
     editor.bus.on('change', () => this.onBoardEdited());
     editor.bus.on('settings', () => {
@@ -104,10 +123,10 @@ export class App {
     });
     this.editor = editor;
     this.editController = new EditController(this.layout.canvas, this.renderer.camera, editor, {
-      toggleTestFire: () => {},
-      copy: () => {},
-      paste: () => {},
-      duplicate: () => {},
+      toggleTestFire: () => this.setTestFire(!this.testFire),
+      copy: () => editor.copySelection(),
+      paste: () => editor.paste(),
+      duplicate: () => editor.duplicate(),
     });
     editor.bus.on('tool', () => this.editController.updateCursor());
   }
@@ -128,8 +147,9 @@ export class App {
       this.renderer.overlayCircles.clear();
       this.labels.clear();
     }
-    // エディット中は物理を止める
-    this.loop.paused = edit;
+    if (!edit) this.testFire = false;
+    // エディット中は物理を止める (テスト発射中を除く)
+    this.loop.paused = edit && !this.testFire;
     this.loop.resetClock();
     this.keys.handler = {
       keydown: (e) => {
@@ -149,6 +169,31 @@ export class App {
     this.editController.updateCursor();
     this.applyViewSettings();
     this.rebuildStatic();
+  }
+
+  setTestFire(on: boolean): void {
+    this.testFire = on && this.mode === 'edit';
+    this.loop.paused = this.mode === 'edit' && !this.testFire;
+    this.loop.resetClock();
+    this.testFireButton.classList.toggle('on', this.testFire);
+  }
+
+  /** オブジェクトが画面に収まるようにカメラを動かす */
+  focusObjects(ids: string[]): void {
+    const objs = ids.map((id) => this.editor.get(id)).filter((o) => o !== undefined);
+    if (objs.length === 0) return;
+    const bs = objs.map(objectBounds);
+    const minX = Math.min(...bs.map((b) => b.minX));
+    const maxX = Math.max(...bs.map((b) => b.maxX));
+    const minY = Math.min(...bs.map((b) => b.minY));
+    const maxY = Math.max(...bs.map((b) => b.maxY));
+    const cam = this.renderer.camera;
+    const size = Math.max(maxX - minX, maxY - minY, 40);
+    const fit = Math.min(cam.viewW, cam.viewH) * 0.4;
+    cam.zoom = Math.min(8, Math.max(1, fit / (size * cam.fitScale)));
+    cam.centerX = (minX + maxX) / 2;
+    cam.centerY = (minY + maxY) / 2;
+    this.editor.viewScale = cam.scale;
   }
 
   private applyViewSettings(): void {
@@ -190,7 +235,8 @@ export class App {
   // ---- ループ ----
 
   private step(dt: number): void {
-    this.game.step(dt);
+    if (this.mode === 'play') this.game.step(dt);
+    else this.game.testStep(dt, this.testFire);
   }
 
   private draw(realDt: number): void {
@@ -212,6 +258,8 @@ export class App {
   updateUi(): void {
     this.hud.update();
     this.dial.update();
+    const s = String(Math.round(this.game.launcher.strength * 100));
+    if (this.testStrength.value !== s) this.testStrength.value = s;
   }
 
   // ---- UI ----
@@ -254,6 +302,24 @@ export class App {
     );
 
     this.editorPanel = new EditorPanel(this.editor);
+    this.testFireButton.addEventListener('click', () => this.setTestFire(!this.testFire));
+    this.testStrength.addEventListener('input', () => {
+      launcher.setStrength(Number(this.testStrength.value) / 100);
+      this.updateUi();
+    });
+    this.editorPanel.sections.append(
+      new PropertyPanel(this.editor).el,
+      h('section', { className: 'panel' }, [
+        h('h2', { textContent: 'テスト発射' }),
+        h('div', { className: 'row' }, [this.testFireButton, this.testStrength]),
+        h('p', {
+          className: 'help',
+          textContent:
+            'その場の盤面で物理だけを動かして玉の流れを確認します (集計には含めません)。',
+        }),
+      ]),
+      new WarningsPanel(this.editor, (ids) => this.focusObjects(ids)).el,
+    );
     this.editPanel.append(this.editorPanel.el);
 
     this.modeButtons.play.addEventListener('click', () => this.setMode('play'));

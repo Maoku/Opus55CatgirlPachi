@@ -97,3 +97,23 @@ describe('発射とレール', () => {
     game.physics.dispose();
   }, 120_000);
 });
+
+describe('テスト発射', () => {
+  it('玉は打つが、発射数・持ち玉・入賞の集計には含めない', async () => {
+    const R = await loadRapier();
+    const board = createSampleBoard();
+    const game = new Game(new PhysicsWorld(R, board), board, { seed: 3, initialBalls: 50 });
+    game.launcher.setStrength(0.5);
+    let spawned = 0;
+    game.bus.on('pocket', () => spawned++);
+    for (let i = 0; i < 240 * 3; i++) game.testStep(1 / 240, true);
+    expect(game.balls.count).toBeGreaterThan(0);
+    for (let i = 0; i < 240 * 10; i++) game.testStep(1 / 240, false);
+    expect(game.balls.count).toBe(0);
+    expect(game.launched).toBe(0);
+    expect(game.held).toBe(50);
+    expect(game.pockets.out).toBe(0);
+    expect(spawned).toBe(0);
+    game.physics.dispose();
+  });
+});

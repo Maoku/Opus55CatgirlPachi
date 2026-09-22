@@ -32,6 +32,8 @@ export class Game {
   readonly bus = new EventBus<GameEvents>();
   readonly rng: SeededRng;
   readonly launcher: Launcher;
+  /** エディタのテスト発射用 (集計に影響しない玉を打つ) */
+  readonly testLauncher: Launcher;
   readonly balls: BallManager;
   /** シミュレーション時間 (秒) */
   time = 0;
@@ -52,6 +54,7 @@ export class Game {
   ) {
     this.rng = new SeededRng(options.seed);
     this.launcher = new Launcher(board.launcher, this.rng.fork('launcher'));
+    this.testLauncher = new Launcher(board.launcher, this.rng.fork('test'));
     this.balls = new BallManager(physics);
     this.held = options.initialBalls;
   }
@@ -61,6 +64,7 @@ export class Game {
     this.balls.rebind(physics);
     this.physics = physics;
     this.launcher.def = board.launcher;
+    this.testLauncher.def = board.launcher;
   }
 
   /** 差玉 = 総賞球 − 発射数 */
@@ -86,19 +90,33 @@ export class Game {
     this.bus.emit('launch', { ballId: rec.id, speed: order.speed });
   }
 
+  /**
+   * エディタのテスト発射: 現在の強度で打ち続け、物理だけを進める。
+   * 打った玉は発射数・賞球などの集計に含めない。
+   */
+  testStep(dt: number, firing: boolean): void {
+    const l = this.testLauncher;
+    l.holding = firing;
+    l.strength = this.launcher.strength;
+    l.blocked = this.balls.isFull;
+    const order = l.update(dt);
+    if (order) this.balls.spawn(order.x, order.y, order.vx, order.vy, 'debug', this.time);
+    this.physics.step();
+    this.handle(this.physics.drainEvents());
+  }
+
   handle(events: readonly PhysicsEvent[]): void {
     for (const e of events) {
       switch (e.type) {
         case 'pocket': {
           const rec = this.balls.release(e.ballId);
-          const launched = rec?.origin === 'launch';
+          // デバッグ用・テスト発射の玉は集計しない
+          if (rec?.origin !== 'launch') break;
           this.pockets[e.kind]++;
           if (e.kind === 'foul') {
             // ファール玉は持ち玉に戻し、発射数からも除く
-            if (launched) {
-              this.held++;
-              this.launched--;
-            }
+            this.held++;
+            this.launched--;
             this.fouls++;
             this.bus.emit('foul', { ballId: e.ballId });
           } else {
@@ -113,13 +131,16 @@ export class Game {
           break;
         }
         case 'gate':
+          if (this.balls.get(e.ballId)?.origin !== 'launch') break;
           this.bus.emit('gate', { ballId: e.ballId, objectId: e.objectId });
           break;
-        case 'lost':
-          this.balls.release(e.ballId);
+        case 'lost': {
+          const rec = this.balls.release(e.ballId);
+          if (rec?.origin !== 'launch') break;
           this.lost++;
           this.bus.emit('lost', { ballId: e.ballId, reason: e.reason });
           break;
+        }
       }
     }
   }

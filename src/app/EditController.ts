@@ -120,7 +120,7 @@ export class EditController implements KeyHandler {
       ? ''
       : this.spaceHeld
         ? 'grab'
-        : (this.editor.tool?.cursor ?? 'default');
+        : (this.editor.tool?.cssCursor ?? 'default');
   }
 
   keydown(e: KeyboardEvent): boolean {

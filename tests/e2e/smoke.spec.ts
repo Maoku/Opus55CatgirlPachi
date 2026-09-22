@@ -28,10 +28,11 @@ test('Shift+クリックした位置に玉を落とせる', async ({ page }) => 
   await page.mouse.click(pos.x, pos.y);
   await page.keyboard.up('Shift');
   expect(await page.evaluate(() => window.__pachi!.physics.ballCount)).toBe(1);
-  // 玉は釘で跳ねて、やがてアウト口で回収される
-  await page.waitForFunction(() => window.__pachi!.game.pockets.out >= 1, null, {
+  // 玉は釘で跳ねて、やがてアウト口で回収される (デバッグ用の玉は集計に含めない)
+  await page.waitForFunction(() => window.__pachi!.physics.ballCount === 0, null, {
     timeout: 20_000,
   });
+  expect(await page.evaluate(() => window.__pachi!.game.launched)).toBe(0);
 });
 
 test('Space を押しているあいだ発射し、持ち玉が減る', async ({ page }) => {

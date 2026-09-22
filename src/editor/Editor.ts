@@ -2,7 +2,7 @@ import { IdAllocator } from '@/board/ids';
 import type { BoardData, BoardObject } from '@/board/types';
 import { EventBus } from '@/core/EventBus';
 import type { Vec2 } from '@/core/Vec2';
-import { ReplaceObjects, RemoveObjects, type Command } from './commands';
+import { AddObjects, ReplaceObjects, RemoveObjects, type Command } from './commands';
 import { History } from './History';
 import { moveObject } from './objectOps';
 import type { Tool, ToolId } from './tools/Tool';
@@ -55,6 +55,9 @@ export class Editor {
   /** 盤面 px → スクリーン px の倍率 (カメラに合わせて App が更新する) */
   viewScale = 1;
   clipboard: BoardObject[] = [];
+  /** 盤面が変わるたびに増える (プレビューを含む)。計算結果のキャッシュに使う */
+  revision = 0;
+  private pasteCount = 0;
 
   constructor(readonly board: BoardData) {
     this.ids = new IdAllocator(board);
@@ -116,6 +119,15 @@ export class Editor {
       const i = this.board.objects.findIndex((b) => b.id === o.id);
       if (i >= 0) this.board.objects[i] = o;
     }
+    this.revision++;
+    this.bus.emit('change', { preview: true });
+    this.requestOverlay();
+  }
+
+  /** 履歴に積まずに盤面の項目を差し替える (ドラッグ中の表示用) */
+  previewField<K extends 'playfield' | 'launcher'>(key: K, value: BoardData[K]): void {
+    this.board[key] = value;
+    this.revision++;
     this.bus.emit('change', { preview: true });
     this.requestOverlay();
   }
@@ -137,6 +149,7 @@ export class Editor {
   }
 
   private afterChange(): void {
+    this.revision++;
     this.ids.reset(this.board);
     // 消えたオブジェクトを選択から外す
     let pruned = false;
@@ -197,6 +210,35 @@ export class Editor {
     if (before.length === 0) return;
     const after = before.map((o) => moveObject(o, dx, dy));
     this.execute(new ReplaceObjects(before, after, '微調整'), true);
+  }
+
+  copySelection(): void {
+    const sel = this.selectedObjects();
+    if (sel.length === 0) return;
+    this.clipboard = structuredClone(sel);
+    this.pasteCount = 0;
+  }
+
+  /** クリップボードの内容を少しずらして貼り付ける */
+  paste(): void {
+    if (this.clipboard.length === 0) return;
+    this.pasteCount++;
+    this.addCopies(this.clipboard, 10 * this.pasteCount, '貼り付け');
+  }
+
+  /** 選択中のオブジェクトを複製する (クリップボードは変えない) */
+  duplicate(): void {
+    const sel = this.selectedObjects();
+    if (sel.length > 0) this.addCopies(sel, 10, '複製');
+  }
+
+  private addCopies(objects: readonly BoardObject[], offset: number, label: string): void {
+    const copies = objects.map((o) => ({
+      ...moveObject(structuredClone(o), offset, offset),
+      id: this.ids.allocate(o.type),
+    }));
+    this.execute(new AddObjects(copies, label));
+    this.select(copies.map((o) => o.id));
   }
 
   updateSettings(patch: Partial<EditorSettings>): void {

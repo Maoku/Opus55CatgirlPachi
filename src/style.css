@@ -387,3 +387,84 @@ button.on kbd {
   border-color: rgba(0, 0, 0, 0.25);
   color: #1a0010;
 }
+
+/* ---- プロパティ ---- */
+
+.props {
+  display: grid;
+  gap: 6px;
+}
+
+.prop {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.prop > span:first-child {
+  min-width: 3.2em;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.prop .unit {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.prop-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 10px;
+}
+
+.prop-group {
+  margin-top: 6px;
+  color: var(--accent-2);
+  font-size: 12px;
+}
+
+.prop-note {
+  font-size: 12px;
+}
+
+input.num {
+  width: 5.2em;
+  min-width: 0;
+}
+
+input.wide {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---- 警告 ---- */
+
+.warnings {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 180px;
+  overflow-y: auto;
+  font-size: 12px;
+}
+
+.warnings li {
+  padding: 3px 6px;
+  border-left: 3px solid var(--accent-2);
+  margin-bottom: 3px;
+  background: rgba(255, 210, 74, 0.06);
+}
+
+.warnings li.ok {
+  border-color: var(--ok);
+  background: rgba(95, 224, 160, 0.06);
+}
+
+.warnings li.link {
+  cursor: pointer;
+}
+
+.warnings li.link:hover {
+  background: rgba(255, 210, 74, 0.16);
+}

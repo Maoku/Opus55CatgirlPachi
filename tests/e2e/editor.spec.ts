@@ -32,9 +32,7 @@ async function nailById(page: Page, id: string) {
   }, id);
 }
 
-test('E でエディットモードに入り、釘をドラッグで動かして Undo / Redo できる', async ({
-  page,
-}) => {
+test('E でエディットモードに入り、釘をドラッグで動かして Undo / Redo できる', async ({ page }) => {
   await ready(page);
   await page.locator('#view').focus();
   await page.keyboard.press('e');
@@ -93,4 +91,69 @@ test('何もない所からドラッグすると矩形選択になる', async ({
   await page.keyboard.press('Control+z');
   const count = await page.evaluate(() => window.__pachi!.board.objects.length);
   expect(count).toBeGreaterThan(n);
+});
+
+test('配置ツールとプロパティパネルで盤面を編集できる', async ({ page }) => {
+  await ready(page);
+  await page.locator('#view').focus();
+  await page.keyboard.press('e');
+  const count = () => page.evaluate(() => window.__pachi!.board.objects.length);
+  const last = () => page.evaluate(() => window.__pachi!.board.objects.at(-1)!);
+  const n0 = await count();
+
+  // 釘
+  await page.keyboard.press('n');
+  let p = await toPage(page, 300, 760);
+  await page.mouse.click(p.x, p.y);
+  expect(await count()).toBe(n0 + 1);
+  expect(await last()).toMatchObject({ type: 'nail' });
+
+  // 壁 (3 点クリック → Enter)
+  await page.keyboard.press('w');
+  for (const [x, y] of [
+    [300, 800],
+    [360, 820],
+    [420, 800],
+  ]) {
+    p = await toPage(page, x!, y!);
+    await page.mouse.click(p.x, p.y);
+  }
+  await page.keyboard.press('Enter');
+  expect(await last()).toMatchObject({ type: 'wall', points: { length: 3 } });
+
+  // 入賞口 (ドラッグで矩形)
+  await page.keyboard.press('p');
+  const a = await toPage(page, 500, 900);
+  const b = await toPage(page, 540, 930);
+  await page.mouse.move(a.x, a.y);
+  await page.mouse.down();
+  await page.mouse.move(b.x, b.y, { steps: 3 });
+  await page.mouse.up();
+  expect(await last()).toMatchObject({ type: 'pocket', kind: 'start', payout: 3 });
+
+  // プロパティパネルで賞球を変える
+  const payout = page.locator('.props label.prop', { hasText: '賞球' }).locator('input');
+  await payout.fill('5');
+  await payout.press('Enter');
+  expect(await last()).toMatchObject({ payout: 5 });
+
+  // 複製と削除
+  await page.locator('#view').focus();
+  await page.keyboard.press('Control+d');
+  expect(await count()).toBe(n0 + 4);
+  await page.keyboard.press('Delete');
+  expect(await count()).toBe(n0 + 3);
+  await page.screenshot({ path: 'Docs/screenshots/phase4-tools.png' });
+});
+
+test('テスト発射で玉が出て、集計には含まれない', async ({ page }) => {
+  await ready(page);
+  await page.locator('#view').focus();
+  await page.keyboard.press('e');
+  await page.keyboard.press('t');
+  await page.waitForFunction(() => window.__pachi!.physics.ballCount > 0, null, {
+    timeout: 5000,
+  });
+  await page.keyboard.press('t');
+  expect(await page.evaluate(() => window.__pachi!.game.launched)).toBe(0);
 });

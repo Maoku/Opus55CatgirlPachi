@@ -1,3 +1,4 @@
+import { gapBetween, nailGaps, type NailGap } from '@/board/analysis';
 import type { BoardObject } from '@/board/types';
 import { DEG, rotRectCorners } from '@/core/geometry';
 import { CircleKind } from '@/render/CircleBatch';
@@ -11,6 +12,35 @@ const HOVER = hex('#ffffff', 0.7);
 const GRID = hex('#ffffff', 0.12);
 const GRID_MAJOR = hex('#ffffff', 0.22);
 const LAUNCHER = hex('#7dff9a');
+const GAP_OK = hex('#5fe0a0', 0.85);
+const GAP_NG = hex('#ff5566', 0.95);
+
+let gapCache: { revision: number; gaps: NailGap[] } | null = null;
+
+function drawGaps(editor: Editor, d: OverlayDrawer): void {
+  if (gapCache?.revision !== editor.revision) {
+    gapCache = { revision: editor.revision, gaps: nailGaps(editor.board) };
+  }
+  for (const g of gapCache.gaps) {
+    d.lines.segment(g.a.x, g.a.y, g.b.x, g.b.y, 1.5, g.passable ? GAP_OK : GAP_NG);
+  }
+}
+
+/** 釘を 2 本選んだときに、中心間の距離と隙間を mm で表示する */
+function drawNailPair(editor: Editor, d: OverlayDrawer): void {
+  const sel = editor.selectedObjects();
+  if (sel.length !== 2 || sel[0]!.type !== 'nail' || sel[1]!.type !== 'nail') return;
+  const g = gapBetween(editor.board, sel[0], sel[1]);
+  const mm = (px: number) => ((px / editor.board.scale.pxPerCm) * 10).toFixed(1);
+  d.lines.segment(g.a.x, g.a.y, g.b.x, g.b.y, 2, g.passable ? GAP_OK : GAP_NG);
+  const verdict = g.passable ? '玉が通る' : '玉が通らない';
+  d.label(
+    `中心間 ${mm(g.dist)}mm / 隙間 ${mm(g.gap)}mm (${verdict})`,
+    (g.a.x + g.b.x) / 2,
+    Math.min(g.a.y, g.b.y) - 4,
+    g.passable ? 'ok' : 'ng',
+  );
+}
 
 /** キャンバスに重ねる文字ラベル (寸法など)。要素を使い回す */
 export class OverlayLabels {
@@ -107,6 +137,7 @@ export function drawEditorOverlay(editor: Editor, r: Renderer, labels: OverlayLa
   };
 
   if (editor.settings.showGrid) drawGrid(editor, r);
+  if (editor.settings.showGaps) drawGaps(editor, drawer);
 
   // 発射位置と方向
   const l = editor.board.launcher;
@@ -119,6 +150,7 @@ export function drawEditorOverlay(editor: Editor, r: Renderer, labels: OverlayLa
     if (o) highlightObject(drawer, o, HOVER, 1.5);
   }
   for (const o of editor.selectedObjects()) highlightObject(drawer, o, SELECT, 2);
+  drawNailPair(editor, drawer);
 
   editor.tool?.draw(drawer);
   labels.end();
