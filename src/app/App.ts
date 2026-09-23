@@ -498,6 +498,15 @@ export class App {
       resume: () => this.resumeAutoPlay(),
       stop: () => this.stopAutoPlay(),
       speed: (sp) => this.setAutoSpeed(sp),
+      strength: (side, v) => {
+        this.autoPlay.setStrength(side, v);
+        this.updateUi();
+      },
+    });
+    // 実行中に変えた強度を次回の設定としても残す
+    this.autoPlay.bus.on('strength', (e) => {
+      this.autoPanel.setStrength(e.leftStrength, e.rightStrength);
+      saveJson(AUTOPLAY_KEY, this.autoPanel.currentConfig);
     });
     this.debugPanel = new DebugPanel(this.editor);
     this.playPanel.append(

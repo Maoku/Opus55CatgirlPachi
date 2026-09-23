@@ -62,6 +62,40 @@ test('10 倍速で動き、一時停止・再開・停止ができる', async ({
   expect(await page.evaluate(() => window.__pachi!.autoPlay.report!.reason)).toBe('manual');
 });
 
+test('既定は等倍速で、実行中に変えた強度で打ち続け、次回の設定にも残る', async ({ page }) => {
+  await ready(page);
+  const p = panel(page);
+  await expect(p.locator('select')).toHaveValue('1');
+  await p.getByRole('button', { name: '開始' }).click();
+  expect(await page.evaluate(() => window.__pachi!.autoPlay.config!.speed)).toBe(1);
+  const left = p.locator('.auto-form input[type=range]').first();
+  await expect(left).toBeEnabled();
+  await page.waitForFunction(() => window.__pachi!.game.time > 0.5);
+  const base = await page.evaluate(() => window.__pachi!.game.launcher.strength);
+
+  // キーボードでハンドルを動かす
+  await page.locator('#view').focus();
+  for (let i = 0; i < 10; i++) await page.keyboard.press('ArrowUp');
+  const target = Math.round((base + 0.1) * 100);
+  await page.waitForTimeout(500);
+  const s = await page.evaluate(() => ({
+    strength: window.__pachi!.game.launcher.strength,
+    left: window.__pachi!.autoPlay.config!.leftStrength,
+  }));
+  expect(Math.round(s.strength * 100)).toBe(target);
+  expect(Math.round(s.left * 100)).toBe(target);
+  await expect(left).toHaveValue(String(target));
+
+  // パネルのスライダーからも変えられる
+  await left.fill('70');
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => window.__pachi!.game.launcher.strength)).toBeCloseTo(0.7);
+
+  await p.getByRole('button', { name: '停止', exact: true }).click();
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('pachi.autoplay')!));
+  expect(saved.leftStrength).toBeCloseTo(0.7);
+});
+
 test('エディタから自動プレイを起動できる', async ({ page }) => {
   await ready(page);
   await page.evaluate(() => {

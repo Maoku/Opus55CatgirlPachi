@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { isReachShowing, reelFrames, reelStopTimes } from '@/game/ReelModel';
+import { DEFAULT_SPEC } from '@/game/GameSpec';
+import { isReachShowing, REACH_TIME, reelFrames, reelStopTimes } from '@/game/ReelModel';
 
 const spin = (elapsed: number, reach = false, duration = 8) => ({
   duration,
@@ -66,5 +67,16 @@ describe('リールの見え方', () => {
     expect(isReachShowing(spin(right + 0.1, true, d))).toBe(true);
     expect(isReachShowing(spin(d, true, d))).toBe(false);
     expect(isReachShowing(spin(7, false))).toBe(false);
+  });
+
+  it('リーチになってから中リールが止まるまでは REACH_TIME 秒', () => {
+    for (const [lo, hi] of [DEFAULT_SPEC.variation.reach, DEFAULT_SPEC.variation.supportReach]) {
+      for (const d of [lo, hi]) {
+        const [left, center, right] = reelStopTimes(spin(0, true, d));
+        expect(center - right).toBeCloseTo(REACH_TIME);
+        expect(left).toBeGreaterThan(0);
+        expect(left).toBeLessThan(right);
+      }
+    }
   });
 });

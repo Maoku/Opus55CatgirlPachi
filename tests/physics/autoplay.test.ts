@@ -79,6 +79,50 @@ describe('自動プレイ', () => {
     expect(report.payoutByKind.attacker).toBe(report.pockets.attacker * 15);
   }, 120_000);
 
+  it('実行中にハンドルを動かすと、その強度で打ち続ける', async () => {
+    const R = await loadRapier();
+    const board = createDefaultBoard();
+    const config = {
+      ...DEFAULT_AUTO_CONFIG,
+      seed: 5,
+      maxShots: null,
+      maxTime: 5,
+      autoSwitch: false,
+    };
+    const game = new Game(new PhysicsWorld(R, board), board, { seed: 1 });
+    game.reset(5, 0);
+    const auto = new AutoPlayController(game);
+    const events: number[] = [];
+    auto.bus.on('strength', (e) => events.push(e.leftStrength));
+    auto.begin(config, board.name);
+    const dt = game.physics.params.timestep;
+    const stepFor = (sec: number) => {
+      const end = game.time + sec;
+      while (game.time < end && auto.active) {
+        auto.beforeStep();
+        game.step(dt);
+        auto.afterStep(dt);
+      }
+    };
+    stepFor(1);
+    expect(game.launcher.strength).toBe(config.leftStrength);
+    // ホイールやダイヤルと同じくハンドルを直接動かす
+    game.launcher.setStrength(0.6);
+    stepFor(1);
+    expect(game.launcher.strength).toBe(0.6);
+    expect(auto.config!.leftStrength).toBe(0.6);
+    expect(events).toEqual([0.6]);
+    // パネルのスライダーからも変えられる
+    auto.setStrength('left', 0.4);
+    expect(game.launcher.strength).toBe(0.4);
+    const report = runHeadless(game, auto)!;
+    expect(game.launcher.strength).toBe(0.4);
+    expect(report.config.leftStrength).toBe(0.4);
+    // 渡した設定そのものは書き換えない
+    expect(config.leftStrength).toBe(DEFAULT_AUTO_CONFIG.leftStrength);
+    game.physics.dispose();
+  }, 120_000);
+
   it('レポートの集計値が整合している', async () => {
     const { report } = await run({ maxShots: 300 });
     expect(report.net).toBe(report.payout - report.shots);

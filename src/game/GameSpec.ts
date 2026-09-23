@@ -71,11 +71,11 @@ export const DEFAULT_SPEC: GameSpec = {
   maxHolds: 4,
   variation: {
     normalMiss: [6, 10],
-    reach: [15, 30],
+    reach: [7, 9],
     shortened: 3,
     shortenHolds: 3,
     supportMiss: [1.5, 3],
-    supportReach: [8, 12],
+    supportReach: [6, 7.5],
     stopPause: 0.8,
   },
   reachRate: 0.08,

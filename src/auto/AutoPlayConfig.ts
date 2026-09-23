@@ -30,7 +30,7 @@ export const DEFAULT_AUTO_CONFIG: AutoPlayConfig = {
   autoSwitch: true,
   onEmpty: 'lend',
   maxInvest: 50_000,
-  speed: 10,
+  speed: 1,
   seed: null,
   initialBalls: 0,
 };

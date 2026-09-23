@@ -3,6 +3,8 @@ import { SYMBOL_COUNT } from './Lottery';
 
 /** 図柄がスクロールする速さ (図柄/秒) */
 export const REEL_SPEED = 14;
+/** リーチになってから (右リールが止まってから) 中リールが止まるまでの秒数 */
+export const REACH_TIME = 4;
 
 export interface ReelFrame {
   /** 中央から offset だけ下にずれた位置にある図柄 */
@@ -20,8 +22,9 @@ export function reelStopTimes(
 ): [number, number, number] {
   const d = spin.duration;
   if (spin.reach) {
-    // リーチは左右を早めに止め、中リールで引っ張る
-    return [Math.min(d * 0.18, 2.2), d, Math.min(d * 0.3, 3.4)];
+    // リーチは左右を先に止め、中リールだけ REACH_TIME 秒回す (変動が短すぎるときは比率で縮める)
+    const right = Math.max(d - REACH_TIME, d * 0.3);
+    return [right * 0.65, d, right];
   }
   return [d * 0.5, d, d * 0.75];
 }

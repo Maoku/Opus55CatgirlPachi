@@ -14,7 +14,11 @@ export type AutoPlayStatus = 'idle' | 'running' | 'draining' | 'paused' | 'finis
 export interface AutoPlayEvents {
   status: { status: AutoPlayStatus };
   finished: { report: AutoPlayReport };
+  /** 実行中にハンドルの強度が変わった */
+  strength: { leftStrength: number; rightStrength: number };
 }
+
+export type ShotSide = 'left' | 'right';
 
 /** 発射数に達したあと、盤面に残った玉を待つ上限 (秒) */
 const DRAIN_LIMIT = 20;
@@ -38,6 +42,9 @@ export class AutoPlayController {
   private historyInterval = HISTORY_INTERVAL;
   private drainTime = 0;
   private resumeStatus: AutoPlayStatus = 'running';
+  /** 前のステップで打った側と、ハンドルに設定した強度 (手動で動かされたかの判定に使う) */
+  private appliedSide: ShotSide | null = null;
+  private appliedStrength = 0;
 
   constructor(private readonly game: Game) {}
 
@@ -47,8 +54,9 @@ export class AutoPlayController {
 
   /** 開始する。game は reset 済みであること */
   begin(config: AutoPlayConfig, boardName: string): void {
-    this.config = config;
+    this.config = { ...config };
     this.boardName = boardName;
+    this.appliedSide = null;
     this.report = null;
     this.history.length = 0;
     this.history.push(snapshot(this.game));
@@ -71,6 +79,22 @@ export class AutoPlayController {
 
   stop(): void {
     if (this.active) this.finish('manual');
+  }
+
+  /** 実行中に左打ち・右打ちの強度を変える。次のステップから反映する */
+  setStrength(side: ShotSide, strength: number): void {
+    const c = this.config;
+    if (!c) return;
+    const v = Math.min(1, Math.max(0, strength));
+    const key = side === 'right' ? 'rightStrength' : 'leftStrength';
+    if (c[key] === v) return;
+    c[key] = v;
+    // いま打っている側ならハンドルにもすぐ反映する (一時停止中の表示のため)
+    if (side === this.appliedSide) {
+      this.game.launcher.setStrength(v);
+      this.appliedStrength = this.game.launcher.strength;
+    }
+    this.bus.emit('strength', { leftStrength: c.leftStrength, rightStrength: c.rightStrength });
   }
 
   /** 進み具合 (0..1)。発射数と時間のうち進んでいるほう */
@@ -96,8 +120,14 @@ export class AutoPlayController {
     const c = this.config;
     const g = this.game;
     if (!c || (this.status !== 'running' && this.status !== 'draining')) return;
-    const right = c.autoSwitch && g.machine.rightShot;
-    g.launcher.setStrength(right ? c.rightStrength : c.leftStrength);
+    const side: ShotSide = c.autoSwitch && g.machine.rightShot ? 'right' : 'left';
+    // 実行中にハンドルを動かしたら、その側の強度として以後その値で打ち続ける
+    if (side === this.appliedSide && g.launcher.strength !== this.appliedStrength) {
+      this.setStrength(side, g.launcher.strength);
+    }
+    g.launcher.setStrength(side === 'right' ? c.rightStrength : c.leftStrength);
+    this.appliedSide = side;
+    this.appliedStrength = g.launcher.strength;
     g.launcher.locked = false;
     g.launcher.holding = this.status === 'running';
     if (this.status === 'running' && g.held <= 0) {

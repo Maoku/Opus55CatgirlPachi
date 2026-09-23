@@ -4,7 +4,7 @@ import {
   type AutoPlayConfig,
   type AutoSpeed,
 } from '@/auto/AutoPlayConfig';
-import type { AutoPlayController } from '@/auto/AutoPlayController';
+import type { AutoPlayController, ShotSide } from '@/auto/AutoPlayController';
 import { rotationRate } from '@/auto/AutoPlayStats';
 import type { Game } from '@/game/Game';
 import { fmt, h } from './dom';
@@ -17,6 +17,7 @@ export interface AutoPlayHandlers {
   resume(): void;
   stop(): void;
   speed(speed: AutoSpeed): void;
+  strength(side: ShotSide, strength: number): void;
 }
 
 const STATUS_LABELS = {
@@ -48,6 +49,7 @@ export class AutoPlayPanel {
   };
   private readonly reportBox = h('div');
   private lastReportShown: unknown = null;
+  private readonly syncStrength: () => void;
 
   constructor(
     private readonly auto: AutoPlayController,
@@ -105,9 +107,17 @@ export class AutoPlayPanel {
       i.leftValue.textContent = `${i.left.value}%`;
       i.rightValue.textContent = `${i.right.value}%`;
     };
+    this.syncStrength = syncStrength;
     syncStrength();
-    i.left.addEventListener('input', syncStrength);
-    i.right.addEventListener('input', syncStrength);
+    // ハンドルの強度は実行中も変えられる
+    const onStrength = (side: ShotSide, input: HTMLInputElement) => {
+      syncStrength();
+      const v = Number(input.value) / 100;
+      this.config = { ...this.config, [side === 'right' ? 'rightStrength' : 'leftStrength']: v };
+      if (this.auto.active) handlers.strength(side, v);
+    };
+    i.left.addEventListener('input', () => onStrength('left', i.left));
+    i.right.addEventListener('input', () => onStrength('right', i.right));
     i.speed.addEventListener('change', () => {
       const speed = (i.speed.value === 'max' ? 'max' : Number(i.speed.value)) as AutoSpeed;
       this.config = { ...this.config, speed };
@@ -205,6 +215,14 @@ export class AutoPlayPanel {
     });
   }
 
+  /** 実行中にハンドルで変えた強度を入力欄と設定に反映する */
+  setStrength(leftStrength: number, rightStrength: number): void {
+    this.config = { ...this.config, leftStrength, rightStrength };
+    this.inputs.left.value = String(Math.round(leftStrength * 100));
+    this.inputs.right.value = String(Math.round(rightStrength * 100));
+    this.syncStrength();
+  }
+
   get currentConfig(): AutoPlayConfig {
     return this.config;
   }
@@ -218,7 +236,7 @@ export class AutoPlayPanel {
     this.pauseButton.textContent = a.status === 'paused' ? '再開' : '一時停止';
     this.stopButton.disabled = !active;
     for (const input of this.el.querySelectorAll<HTMLInputElement>('.auto-form input')) {
-      input.disabled = active;
+      input.disabled = active && input !== this.inputs.left && input !== this.inputs.right;
     }
     let status = STATUS_LABELS[a.status];
     if (active) status += ` (シード ${g.seed})`;
