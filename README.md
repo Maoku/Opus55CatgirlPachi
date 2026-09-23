@@ -40,6 +40,7 @@ npm run dev
 | `npm run format`    | Prettier で整形                       |
 | `npm test`          | 単体テストと物理の統合テスト (Vitest) |
 | `npm run test:e2e`  | E2E テスト (Playwright)               |
+| `npm run test:long` | 長時間の自動プレイ (10 万発)          |
 
 ## 遊び方
 
@@ -149,6 +150,8 @@ npm run test:e2e
 ```
 
 - E2E テストは開発サーバをポート 5174 で起動し、ヘッドレス Chromium (ソフトウェア WebGL) で実行します。初回は `npx playwright install chromium` でブラウザを入れてください。
+- 環境変数 `E2E_BROWSERS` で、インストール済みの Chrome・Edge でも実行できます (例: `E2E_BROWSERS=chrome,msedge npx playwright test --project=chrome --project=msedge`)。Firefox は `npx playwright install firefox` のあと `firefox` を指定します。
+- `npm run test:long` で、最大速度で 10 万発打つ長時間の自動プレイを実行し、メモリの増え方と玉の滞留を確認します (数分かかります。`LONG_SHOTS` で発射数を変えられます)。
 - E2E テストのスクリーンショットは `Docs/screenshots/` に出力されます (git の管理外)。
 
 ## 範囲外 (今後の候補)

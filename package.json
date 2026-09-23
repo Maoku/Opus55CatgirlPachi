@@ -13,7 +13,8 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test --project=chromium",
+    "test:long": "playwright test --project=long"
   },
   "dependencies": {
     "@dimforge/rapier2d-deterministic-compat": "0.20.0"
