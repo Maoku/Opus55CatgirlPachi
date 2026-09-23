@@ -45,6 +45,8 @@ export interface AutoPlayReport {
   invested: number;
   lent: number;
   finalHeld: number;
+  /** 滞留・遊技領域外で回収した玉の数 */
+  lost: number;
   pockets: PocketCounts;
   payoutByKind: PocketCounts;
   history: HistoryPoint[];
@@ -97,6 +99,7 @@ export function makeReport(
     invested: game.invested,
     lent: game.lent,
     finalHeld: game.held,
+    lost: game.lost,
     pockets: { ...game.pockets },
     payoutByKind: { ...game.payoutByKind },
     history: history.map((h) => ({ ...h })),

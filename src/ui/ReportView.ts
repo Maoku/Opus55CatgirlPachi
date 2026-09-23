@@ -105,6 +105,7 @@ export class ReportView {
       ['出玉率', r.payoutRate === null ? '—' : `${(r.payoutRate * 100).toFixed(1)} %`],
       ['投資', `${fmt(r.invested)} 円 (${fmt(r.lent)} 玉)`],
       ['最終持ち玉', `${fmt(r.finalHeld)} 個`],
+      ['回収 (滞留・範囲外)', `${fmt(r.lost)} 個`],
     ];
     const pocketRows = KINDS.map((k) => [
       POCKET_LABELS[k],

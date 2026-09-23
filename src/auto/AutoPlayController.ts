@@ -20,6 +20,8 @@ export interface AutoPlayEvents {
 const DRAIN_LIMIT = 20;
 /** 持ち玉推移を記録する間隔 (ゲーム内時間の秒) */
 const HISTORY_INTERVAL = 1;
+/** 持ち玉推移の点数の上限。超えたら 1 つおきに間引いて記録の間隔を倍にする */
+export const HISTORY_LIMIT = 4000;
 
 /**
  * 自動プレイ。ステップごとに beforeStep / afterStep を呼ぶと、ハンドルの強度と発射を操作し、
@@ -33,6 +35,7 @@ export class AutoPlayController {
   readonly history: HistoryPoint[] = [];
   private boardName = '';
   private nextHistoryAt = 0;
+  private historyInterval = HISTORY_INTERVAL;
   private drainTime = 0;
   private resumeStatus: AutoPlayStatus = 'running';
 
@@ -49,6 +52,7 @@ export class AutoPlayController {
     this.report = null;
     this.history.length = 0;
     this.history.push(snapshot(this.game));
+    this.historyInterval = HISTORY_INTERVAL;
     this.nextHistoryAt = HISTORY_INTERVAL;
     this.drainTime = 0;
     this.setStatus('running');
@@ -108,7 +112,8 @@ export class AutoPlayController {
     if (!c || (this.status !== 'running' && this.status !== 'draining')) return;
     if (g.time >= this.nextHistoryAt) {
       this.history.push(snapshot(g));
-      this.nextHistoryAt += HISTORY_INTERVAL;
+      this.nextHistoryAt += this.historyInterval;
+      if (this.history.length > HISTORY_LIMIT) this.thinHistory();
     }
     if (c.maxTime !== null && g.time >= c.maxTime - 1e-9) {
       this.finish('time');
@@ -133,6 +138,15 @@ export class AutoPlayController {
     }
     this.drainTime += dt;
     if (g.balls.count === 0 || this.drainTime >= DRAIN_LIMIT) this.finish('shots');
+  }
+
+  /** 長時間の実行で記録が増えすぎないよう、1 つおきに間引く (最初の点は残す) */
+  private thinHistory(): void {
+    const h = this.history;
+    let w = 1;
+    for (let i = 2; i < h.length; i += 2) h[w++] = h[i]!;
+    h.length = w;
+    this.historyInterval *= 2;
   }
 
   private finish(reason: StopReason): void {

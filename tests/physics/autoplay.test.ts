@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_AUTO_CONFIG, type AutoPlayConfig } from '@/auto/AutoPlayConfig';
-import { AutoPlayController } from '@/auto/AutoPlayController';
+import { AutoPlayController, HISTORY_LIMIT } from '@/auto/AutoPlayController';
 import { reportToCsv } from '@/auto/AutoPlayStats';
 import { runHeadless } from '@/auto/runHeadless';
 import { createDefaultBoard } from '@/board/defaultBoard';
@@ -89,4 +89,21 @@ describe('自動プレイ', () => {
     expect(csv[0]).toBe('time_s,shots,held,net,spins,jackpots,invested_yen');
     expect(csv.length).toBe(report.history.length + 1);
   }, 120_000);
+
+  it('長時間でも持ち玉推移の点数は上限を超えず、時系列の順に並ぶ', async () => {
+    // 右打ちは玉が早く抜けるので、長いゲーム内時間を短い実時間で回せる
+    const { report } = await run({
+      maxShots: null,
+      maxTime: 3 * 3600,
+      leftStrength: 0.9,
+      maxInvest: 1e9,
+    });
+    expect(report.reason).toBe('time');
+    expect(report.history.length).toBeLessThanOrEqual(HISTORY_LIMIT + 1);
+    expect(report.history.length).toBeGreaterThan(HISTORY_LIMIT / 2);
+    for (let i = 1; i < report.history.length; i++) {
+      expect(report.history[i]!.t).toBeGreaterThan(report.history[i - 1]!.t);
+    }
+    expect(report.lost).toBe(0);
+  }, 300_000);
 });
