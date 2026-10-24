@@ -27,7 +27,7 @@
 
 ## 起動方法
 
-必要なもの: Node.js 20 以上、WebGL2 に対応したブラウザ (最新の Chrome / Edge / Firefox)
+必要なもの: Node.js 24.22.1 以降の24系（`.nvmrc`）、WebGL2 に対応したブラウザ (最新の Chrome / Edge / Firefox)
 
 ```bash
 npm install
